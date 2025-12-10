@@ -46,8 +46,10 @@ fn mtime_now(_: *Clock) ClockError!Instant {
         high2 = MTIME_HIGH.*;
         if (high == high2) {
             const raw = @as(u64, @intCast(low)) | (@as(u64, @intCast(high)) << 32);
+            // QEMU clock runs at 10MHz
+            const nanos = raw * 1000000000 / 10000000;
             return .{
-                .raw = raw,
+                .raw = nanos,
             };
         }
     }
