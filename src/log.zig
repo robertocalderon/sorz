@@ -31,10 +31,11 @@ pub fn log_fn(
             var c = clock;
             const now = c.now() catch break :blk;
             const nanos = now.raw;
-            const micros = nanos / 1000;
-            const solo_nanos = nanos % 1000;
+            const segundos = nanos / 1000000000;
+            const solo_nanos = nanos % 1000000000;
+            const solo_micros = solo_nanos / 1000;
 
-            w.print("[{d: >9}.{d:0>3}]", .{ micros, solo_nanos }) catch break :blk;
+            w.print("[{d: >6}.{d:0>6}]", .{ segundos, solo_micros }) catch break :blk;
         }
         w.print(level_txt ++ prefix2 ++ format ++ "\n", args) catch return;
         w.flush() catch return;
