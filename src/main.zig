@@ -8,4 +8,6 @@ pub fn kernel_main() !void {
     var serial = dev.serial.Serial.default(&SERIAL_BUFFER);
     root.log.init_logging(&serial.interface);
     std.log.info("Iniciando kernel...", .{});
+    var clock = dev.clock.Clock.mtime();
+    std.log.info("MTIME = {d}", .{(try clock.now()).raw});
 }
