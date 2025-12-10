@@ -1,5 +1,5 @@
 pub const sorz = @import("sorz");
-const std = @import("std");
+const std = @import("sorz");
 
 extern var _fw_stack_end: u8;
 
