@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub const dev = @import("dev/root.zig");
+pub const log = @import("log.zig");
 pub const main = @import("main.zig");
 
 pub fn _fw_entry() noreturn {

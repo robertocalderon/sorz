@@ -1,5 +1,5 @@
 pub const sorz = @import("sorz");
-const std = @import("sorz");
+const std = @import("std");
 
 extern var _fw_stack_end: u8;
 
@@ -27,6 +27,6 @@ pub export fn _fw_entry() noreturn {
     sorz._fw_entry();
 }
 
-// pub const std_options: std.Options = .{
-//     .logFn = sorz.logging.log_fn,
-// };
+pub const std_options: std.Options = .{
+    .logFn = sorz.log.log_fn,
+};
