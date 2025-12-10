@@ -30,3 +30,15 @@ pub export fn _fw_entry() noreturn {
 pub const std_options: std.Options = .{
     .logFn = sorz.log.log_fn,
 };
+
+pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
+    std.log.err("PANIC!!!!", .{});
+    std.log.err("MSG: {s}", .{msg});
+    _ = error_return_trace;
+    _ = ret_addr;
+    // for now exit qemu
+    @as(*volatile u32, @ptrFromInt(0x100000)).* = 0x5555;
+    while (true) {
+        asm volatile ("wfi");
+    }
+}
