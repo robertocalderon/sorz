@@ -13,4 +13,18 @@ pub fn kernel_main() !void {
 
     std.log.info("Iniciando kernel...", .{});
     std.log.info("MTIME = {d}", .{(try clock.now()).raw});
+
+    std.log.info("Iniciando reservador de memoria fisica", .{});
+    root.phys_mem.init_physical_alloc();
+
+    {
+        const page = try root.phys_mem.alloc_page();
+        std.log.debug("Alloc test 1: {*}", .{page});
+        root.phys_mem.free_page(page);
+    }
+    {
+        const page = try root.phys_mem.alloc_page();
+        std.log.debug("Alloc test 2: {*}", .{page});
+        root.phys_mem.free_page(page);
+    }
 }
