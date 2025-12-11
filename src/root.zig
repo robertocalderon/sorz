@@ -4,6 +4,7 @@ pub const dev = @import("dev/root.zig");
 pub const log = @import("log.zig");
 pub const main = @import("main.zig");
 pub const phys_mem = @import("mem/phys_mem.zig");
+pub const spinlock = @import("./sync/spinlock.zig");
 
 pub export fn _fw_entry() noreturn {
     main.kernel_main() catch {};
