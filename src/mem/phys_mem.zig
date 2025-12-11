@@ -12,6 +12,19 @@ const PhysicalMemory = struct {
     raw_pages: []u8,
 };
 
+/// Physical memory allocator with multi-page contiguous allocation support
+///
+/// This allocator manages physical memory pages using a bitmap-based approach.
+/// Each bit in the bitmap represents one 4KB page. The allocator supports:
+/// - Single page allocation/freeing (backward compatibility)
+/// - Multi-page contiguous allocation/freeing
+/// - Thread-safe operations using spinlocks
+/// - Efficient bitmap scanning for contiguous regions
+///
+/// Memory layout:
+/// - Bitmap stored at beginning of heap
+/// - Allocatable pages follow the bitmap
+/// - All allocations are page-aligned (4KB boundaries)
 var PHYSICAL_MEMORY: root.spinlock.Spinlock(PhysicalMemory) = .init(undefined);
 
 pub fn init_physical_alloc() void {
@@ -20,7 +33,7 @@ pub fn init_physical_alloc() void {
     const heap_size = page_end - page_start;
     const n_pages = heap_size / 4096;
 
-    std.log.debug("heap range 0x{x:0>8} -> 0x{x:0>8} ({d} paginas)", .{ page_start, page_end, n_pages });
+    std.log.debug("heap range 0x{x:0>8} -> 0x{x:0>8} ({d} pages)", .{ page_start, page_end, n_pages });
 
     var pm = PhysicalMemory{
         .heap_start = page_start,
@@ -64,7 +77,6 @@ pub fn init_physical_alloc() void {
 }
 
 fn allocate_single_bit() ?usize {
-    // TODO: lock before doing this
     const lock = PHYSICAL_MEMORY.lock();
     defer lock.deinit();
 
@@ -78,41 +90,153 @@ fn allocate_single_bit() ?usize {
                 return (idx * 8) + bit;
             }
         }
-        @panic("khe???, byte != 0xff pero no se encontro bit disponible");
+        @panic("internal error: byte != 0xff but no free bit found");
+    }
+    return null;
+}
+
+/// Find contiguous free bits in the bitmap
+fn find_contiguous_bits(bitmap: []u8, n_pages: usize) ?usize {
+    if (n_pages == 0) unreachable;
+    if (n_pages == 1) return find_free_bit(bitmap);
+
+    const total_bits = bitmap.len * 8;
+    if (n_pages > total_bits) return null;
+
+    var current_start: ?usize = null;
+    var current_count: usize = 0;
+
+    for (bitmap, 0..) |byte, byte_index| {
+        for (0..8) |bit| {
+            const bit_index = byte_index * 8 + bit;
+            if (bit_index >= total_bits) break;
+
+            const is_free = (byte & (@as(u8, 1) << @intCast(bit))) == 0;
+
+            if (is_free) {
+                if (current_start == null) {
+                    current_start = bit_index;
+                    current_count = 1;
+                } else {
+                    current_count += 1;
+                }
+
+                if (current_count == n_pages) {
+                    return current_start.?;
+                }
+            } else {
+                current_start = null;
+                current_count = 0;
+            }
+        }
+    }
+
+    return null;
+}
+
+/// Find the first free bit in the bitmap
+fn find_free_bit(bitmap: []u8) ?usize {
+    for (bitmap, 0..) |byte, byte_index| {
+        if (byte != 0xFF) {
+            // Find the first free bit in this byte
+            for (0..8) |bit| {
+                if (byte & (@as(u8, 1) << @intCast(bit)) == 0) {
+                    return byte_index * 8 + bit;
+                }
+            }
+        }
     }
     return null;
 }
 
 pub fn alloc_page() std.mem.Allocator.Error![]u8 {
-    const page_to_alloc = allocate_single_bit() orelse return std.mem.Allocator.Error.OutOfMemory;
-    const page_offset = page_to_alloc * 4096;
+    return alloc_pages(1);
+}
+
+/// Allocate multiple contiguous pages
+///
+/// Args:
+///   n_pages: Number of 4KB pages to allocate (>= 0)
+///
+/// Returns:
+///   Slice of allocated memory with length n_pages * 4096 bytes
+///   Error.OutOfMemory if insufficient contiguous memory is available
+///
+/// Thread Safety: Safe - uses internal spinlock
+pub fn alloc_pages(n_pages: usize) std.mem.Allocator.Error![]u8 {
+    if (n_pages == 0) {
+        var ret: []u8 = undefined;
+        ret.ptr = @ptrFromInt(1);
+        ret.len = 0;
+        return ret;
+    }
 
     const lock = PHYSICAL_MEMORY.lock();
     defer lock.deinit();
 
-    const memory_range = lock.deref().raw_pages[page_offset..(page_offset + 4096)];
+    const start_bit = find_contiguous_bits(lock.deref().alloc_bitmap, n_pages) orelse return std.mem.Allocator.Error.OutOfMemory;
+
+    // Mark bits as allocated
+    for (0..n_pages) |i| {
+        const bit_index = start_bit + i;
+        const byte_index = bit_index / 8;
+        const bit_offset = bit_index % 8;
+        lock.deref().alloc_bitmap[byte_index] |= @as(u8, 1) << @intCast(bit_offset);
+    }
+
+    const page_offset = start_bit * 4096;
+    const total_size = n_pages * 4096;
+    const memory_range = lock.deref().raw_pages[page_offset..(page_offset + total_size)];
+
     return memory_range;
 }
 pub fn free_page(page: []u8) void {
+    free_pages(page);
+}
+
+/// Free multiple contiguous pages
+///
+/// Args:
+///   pages: Slice of memory previously allocated by alloc_pages()
+///          Must be page-aligned and length must be multiple of 4096
+///
+/// Thread Safety: Safe - uses internal spinlock
+/// Note: Invalid parameters are logged but do not panic
+/// Edge Cases: Memory ending exactly at heap boundary is allowed (high == base_ptr + pages.len)
+pub fn free_pages(pages: []u8) void {
+    if (pages.len == 0) return;
+
     const lock = PHYSICAL_MEMORY.lock();
     defer lock.deinit();
 
-    const base_ptr: usize = @intFromPtr(page.ptr);
+    const base_ptr: usize = @intFromPtr(pages.ptr);
     const low: usize = @intFromPtr(lock.deref().raw_pages.ptr);
     const high: usize = low + lock.deref().raw_pages.len;
 
-    if ((base_ptr < low) or (high <= base_ptr)) {
-        std.log.err("free_page error, trying to dealloc page {*} but is outside heap area 0x{x:0>8} -> 0x{x:0>8}", .{ page.ptr, low, high });
+    if ((base_ptr < low) or (high < base_ptr + pages.len)) {
+        std.log.err("free_pages error, trying to dealloc pages {*} with length {} but is outside heap area 0x{x:0>8} -> 0x{x:0>8}", .{ pages.ptr, pages.len, low, high });
         return;
     }
 
     const offset = base_ptr - low;
-    const page_offset = offset / 4096;
     if (offset % 4096 != 0) {
-        std.log.err("Trying to dealloc unaligned page {*}, aligning to {*} and using that", .{ page.ptr, @as([*]u8, @ptrFromInt(page_offset * 4096)) });
+        std.log.err("Trying to dealloc unaligned pages {*}, offset {} not page-aligned", .{ pages.ptr, offset });
+        return;
     }
-    const byte_offset = page_offset / 8;
-    const bit_offset = page_offset % 8;
 
-    lock.deref().alloc_bitmap[byte_offset] &= ~(@as(u8, 1) << @intCast(bit_offset));
+    if (pages.len % 4096 != 0) {
+        std.log.err("Trying to dealloc pages with length {} not page-aligned", .{pages.len});
+        return;
+    }
+
+    const start_page = offset / 4096;
+    const n_pages = pages.len / 4096;
+
+    // Free the corresponding bits
+    for (0..n_pages) |i| {
+        const page_index = start_page + i;
+        const byte_offset = page_index / 8;
+        const bit_offset = page_index % 8;
+        lock.deref().alloc_bitmap[byte_offset] &= ~(@as(u8, 1) << @intCast(bit_offset));
+    }
 }
