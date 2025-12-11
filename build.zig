@@ -36,20 +36,12 @@ pub fn build(b: *std.Build) void {
     });
     const optimize = b.standardOptimizeOption(.{});
 
-    const mod = b.addModule("sorz", .{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-    });
-
     const kernel = b.addExecutable(.{
         .name = "kernel.sorz",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/entry.zig"),
+            .root_source_file = b.path("src/root.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "sorz", .module = mod },
-            },
         }),
     });
     kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.ld" });
@@ -83,6 +75,15 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
+
+    const install_docs = b.addInstallDirectory(.{
+        .source_dir = kernel.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+
+    const docs_step = b.step("docs", "Install docs into zig-out/docs");
+    docs_step.dependOn(&install_docs.step);
 
     // const run_step = b.step("run", "Run the app");
     //
