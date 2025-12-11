@@ -22,6 +22,12 @@ pub fn log_fn(
 ) void {
     const level_txt = comptime message_level.asText();
     const prefix2 = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
+    const color_scape_code = "\x1b[" ++ switch (message_level) {
+        .debug => "34",
+        .info => "32",
+        .warn => "33",
+        .err => "31",
+    } ++ "m";
     // const w = DEFAULT_WRITTER.load(.acquire);
     // var w: *std.Io.Writer = @atomicLoad(*std.Io.Writer, &DEFAULT_WRITTER, .acquire);
     var w: *std.Io.Writer = DEFAULT_WRITTER;
@@ -35,9 +41,9 @@ pub fn log_fn(
             const solo_nanos = nanos % 1000000000;
             const solo_micros = solo_nanos / 1000;
 
-            w.print("[{d: >6}.{d:0>6}]", .{ segundos, solo_micros }) catch break :blk;
+            w.print("[\x1b[36m{d: >6}.{d:0>6}\x1b[0m]  ", .{ segundos, solo_micros }) catch break :blk;
         }
-        w.print(level_txt ++ prefix2 ++ format ++ "\n", args) catch return;
+        w.print(color_scape_code ++ level_txt ++ "\x1b[0m" ++ prefix2 ++ format ++ "\n", args) catch return;
         w.flush() catch return;
     }
 }
