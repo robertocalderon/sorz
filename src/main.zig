@@ -27,4 +27,7 @@ pub fn kernel_main() !void {
         std.log.debug("Alloc test 2: {*}", .{page});
         root.phys_mem.free_page(page);
     }
+
+    std.log.info("Iniciando PMPs", .{});
+    root.pmp.init_pmp();
 }
