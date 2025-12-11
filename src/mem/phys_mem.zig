@@ -1,4 +1,5 @@
 const std = @import("std");
+const root = @import("root");
 
 extern const HEAP_START: u8;
 extern const HEAP_END: u8;
@@ -11,7 +12,7 @@ const PhysicalMemory = struct {
     raw_pages: []u8,
 };
 
-var PHYSICAL_MEMORY: PhysicalMemory = undefined;
+var PHYSICAL_MEMORY: root.spinlock.Spinlock(PhysicalMemory) = .init(undefined);
 
 pub fn init_physical_alloc() void {
     const page_start = std.mem.alignForward(usize, @intFromPtr(&HEAP_START), 4096);
@@ -28,7 +29,9 @@ pub fn init_physical_alloc() void {
         .raw_pages = &.{},
     };
     if (n_pages < 2) {
-        PHYSICAL_MEMORY = pm;
+        const lock = PHYSICAL_MEMORY.lock();
+        lock.deref().* = pm;
+        lock.deinit();
         return;
     }
     const required_bits = n_pages;
@@ -55,18 +58,23 @@ pub fn init_physical_alloc() void {
 
     std.log.debug("bitmap range: 0x{x:0>8} -> 0x{x:0>8}", .{ bitmap_start, bitmap_start + bitmap_len });
 
-    PHYSICAL_MEMORY = pm;
+    const lock = PHYSICAL_MEMORY.lock();
+    lock.deref().* = pm;
+    lock.deinit();
 }
 
 fn allocate_single_bit() ?usize {
     // TODO: lock before doing this
-    for (PHYSICAL_MEMORY.alloc_bitmap, 0..) |byte, idx| {
+    const lock = PHYSICAL_MEMORY.lock();
+    defer lock.deinit();
+
+    for (lock.deref().alloc_bitmap, 0..) |byte, idx| {
         if (byte == 0xff) {
             continue;
         }
         for (0..8) |bit| {
             if ((byte & (@as(u8, 1) << @intCast(bit))) == 0) {
-                PHYSICAL_MEMORY.alloc_bitmap[idx] |= @as(u8, 1) << @intCast(bit);
+                lock.deref().alloc_bitmap[idx] |= @as(u8, 1) << @intCast(bit);
                 return (idx * 8) + bit;
             }
         }
@@ -78,13 +86,20 @@ fn allocate_single_bit() ?usize {
 pub fn alloc_page() std.mem.Allocator.Error![]u8 {
     const page_to_alloc = allocate_single_bit() orelse return std.mem.Allocator.Error.OutOfMemory;
     const page_offset = page_to_alloc * 4096;
-    const memory_range = PHYSICAL_MEMORY.raw_pages[page_offset..(page_offset + 4096)];
+
+    const lock = PHYSICAL_MEMORY.lock();
+    defer lock.deinit();
+
+    const memory_range = lock.deref().raw_pages[page_offset..(page_offset + 4096)];
     return memory_range;
 }
 pub fn free_page(page: []u8) void {
+    const lock = PHYSICAL_MEMORY.lock();
+    defer lock.deinit();
+
     const base_ptr: usize = @intFromPtr(page.ptr);
-    const low: usize = @intFromPtr(PHYSICAL_MEMORY.raw_pages.ptr);
-    const high: usize = low + PHYSICAL_MEMORY.raw_pages.len;
+    const low: usize = @intFromPtr(lock.deref().raw_pages.ptr);
+    const high: usize = low + lock.deref().raw_pages.len;
 
     if ((base_ptr < low) or (high <= base_ptr)) {
         std.log.err("free_page error, trying to dealloc page {*} but is outside heap area 0x{x:0>8} -> 0x{x:0>8}", .{ page.ptr, low, high });
@@ -98,6 +113,6 @@ pub fn free_page(page: []u8) void {
     }
     const byte_offset = page_offset / 8;
     const bit_offset = page_offset % 8;
-    // TODO: should we lock here?
-    PHYSICAL_MEMORY.alloc_bitmap[byte_offset] &= ~(@as(u8, 1) << @intCast(bit_offset));
+
+    lock.deref().alloc_bitmap[byte_offset] &= ~(@as(u8, 1) << @intCast(bit_offset));
 }
