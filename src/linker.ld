@@ -23,6 +23,21 @@ SECTIONS {
 		*(.rodata .rodata.*);
 		*(.srodata .srodata.*);
 		PROVIDE(global_pointer = .);
+		.debug_info_start = .;
+        KEEP(*(.debug_info))
+        .debug_info_end = .;
+        .debug_abbrev_start = .;
+        KEEP(*(.debug_abbrev))
+        .debug_abbrev_end = .;
+        .debug_str_start = .;
+        KEEP(*(.debug_str))
+        .debug_str_end = .;
+        .debug_line_start = .;
+        KEEP(*(.debug_line))
+        .debug_line_end = .;
+        .debug_ranges_start = .;
+        KEEP(*(.debug_ranges))
+        .debug_ranges_end = .;
 	}
 	.data : ALIGN(4K) {
 		*(.data .data*);

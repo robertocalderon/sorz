@@ -7,11 +7,10 @@ pub fn init(alloc: std.mem.Allocator) !void {
         :
         : [val] "r" (@intFromPtr(&interrupt_date[0]) + 4096),
     );
-    const interrupt_pointer = @intFromPtr(&_interrupt_handler);
     asm volatile (
         \\  csrw    mtvec, %[val]
         :
-        : [val] "r" (interrupt_pointer),
+        : [val] "r" (@intFromPtr(&_interrupt_handler_entry)),
     );
     std.log.debug("Interrupt ready", .{});
 }

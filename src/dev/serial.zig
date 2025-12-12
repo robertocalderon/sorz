@@ -24,10 +24,12 @@ pub const Serial = struct {
             self.base.* = c;
         }
         _ = w.consumeAll();
-        for (data, 0..data.len - 1) |buffer, _| {
-            for (buffer) |c| {
-                written += 1;
-                self.base.* = c;
+        if (data.len > 1) {
+            for (data[0 .. data.len - 1]) |buffer| {
+                for (buffer) |c| {
+                    written += 1;
+                    self.base.* = c;
+                }
             }
         }
         for (0..splat) |_| {

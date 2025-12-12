@@ -36,12 +36,20 @@ pub fn build(b: *std.Build) void {
     });
     const optimize = b.standardOptimizeOption(.{});
 
+    const freestanding_lib = b.dependency("freestanding", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     const kernel = b.addExecutable(.{
         .name = "kernel.sorz",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/root.zig"),
             .target = target,
             .optimize = optimize,
+            .imports = &.{
+                .{ .name = "freestanding", .module = freestanding_lib.module("freestanding") },
+            },
         }),
     });
     kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.ld" });

@@ -13,6 +13,9 @@ pub fn init_logging(logger: *std.Io.Writer) void {
 pub fn set_default_clock(clock: dev.clock.Clock) void {
     DEFAULT_CLOCK = clock;
 }
+pub fn get_current_writer() *std.Io.Writer {
+    return DEFAULT_WRITTER;
+}
 
 pub fn log_fn(
     comptime message_level: std.log.Level,
