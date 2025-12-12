@@ -1,40 +1,32 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    var features = std.Target.riscv.featureSet(&.{});
-    features.addFeature(@intFromEnum(std.Target.riscv.Feature.@"32bit"));
-    features.addFeature(@intFromEnum(std.Target.riscv.Feature.i));
-    features.addFeature(@intFromEnum(std.Target.riscv.Feature.m));
-    features.addFeature(@intFromEnum(std.Target.riscv.Feature.a));
-    features.addFeature(@intFromEnum(std.Target.riscv.Feature.c));
-    features.addFeature(@intFromEnum(std.Target.riscv.Feature.zihintpause));
+    const host_target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+    _ = host_target;
 
-    features.removeFeature(@intFromEnum(std.Target.riscv.Feature.f));
-    features.removeFeature(@intFromEnum(std.Target.riscv.Feature.d));
+    var features_add = std.Target.riscv.featureSet(&.{});
+    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.@"32bit"));
+    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.i));
+    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.m));
+    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.a));
+    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.c));
+    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.zihintpause));
 
-    const default_target: std.Target = .{
-        .cpu = .{
-            .arch = .riscv32,
-            .features = features,
-            .model = &std.Target.riscv.cpu.generic,
-        },
+    var features_sub = std.Target.riscv.featureSet(&.{});
+    features_sub.removeFeature(@intFromEnum(std.Target.riscv.Feature.f));
+    features_sub.removeFeature(@intFromEnum(std.Target.riscv.Feature.d));
+
+    const target_query: std.Target.Query = .{
+        .cpu_arch = .riscv32,
+        .cpu_features_add = features_add,
+        .cpu_features_sub = features_sub,
+        .cpu_model = .baseline,
+        .os_tag = .freestanding,
         .abi = .none,
-        .os = .{
-            .tag = .freestanding,
-            .version_range = .{
-                .none = {},
-            },
-        },
         .ofmt = .elf,
     };
-    const rv_baremetal = std.Target.Query.fromTarget(&default_target);
-    const target = b.standardTargetOptions(.{
-        .default_target = rv_baremetal,
-        .whitelist = &.{
-            rv_baremetal,
-        },
-    });
-    const optimize = b.standardOptimizeOption(.{});
+    const target = b.resolveTargetQuery(target_query);
 
     const freestanding_lib = b.dependency("freestanding", .{
         .target = target,
