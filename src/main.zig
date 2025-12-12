@@ -49,4 +49,8 @@ pub fn kernel_main() !void {
 
     std.log.info("Iniciando PMPs", .{});
     root.pmp.init_pmp();
+
+    std.log.info("Iniciando interrupciones", .{});
+    try root.interrupts.init(root.phys_mem.page_alloc());
+    asm volatile ("ecall");
 }

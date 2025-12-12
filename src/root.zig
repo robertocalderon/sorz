@@ -6,6 +6,7 @@ pub const main = @import("main.zig");
 pub const phys_mem = @import("mem/phys_mem.zig");
 pub const spinlock = @import("./sync/spinlock.zig");
 pub const pmp = @import("./arch/pmp.zig");
+pub const interrupts = @import("./arch/interrupts.zig");
 
 pub export fn _fw_entry() noreturn {
     main.kernel_main() catch {};
