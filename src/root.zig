@@ -39,6 +39,14 @@ pub export fn _start() linksection(".text.start") callconv(.naked) void {
 
 pub const std_options: std.Options = .{
     .logFn = log.log_fn,
+    .page_size_max = 4096,
+    .page_size_min = 4096,
+};
+
+pub const os = struct {
+    pub const heap = struct {
+        pub const page_allocator = phys_mem.page_alloc();
+    };
 };
 
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {

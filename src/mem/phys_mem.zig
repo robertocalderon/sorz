@@ -240,3 +240,38 @@ pub fn free_pages(pages: []u8) void {
         lock.deref().alloc_bitmap[byte_offset] &= ~(@as(u8, 1) << @intCast(bit_offset));
     }
 }
+
+pub fn page_alloc() std.mem.Allocator {
+    return .{
+        .ptr = @ptrFromInt(1),
+        .vtable = &.{
+            .alloc = alloc,
+            .free = free,
+
+            .resize = resize,
+            .remap = remap,
+        },
+    };
+}
+
+fn alloc(_: *anyopaque, len: usize, alignment: std.mem.Alignment, ret_addr: usize) ?[*]u8 {
+    _ = alignment;
+    _ = ret_addr;
+    const n_pages = std.mem.alignForward(usize, len, 4096) / 4096;
+    const page = alloc_pages(n_pages) catch return null;
+    return page.ptr;
+}
+
+fn free(_: *anyopaque, memory: []u8, alignment: std.mem.Alignment, ret_addr: usize) void {
+    _ = alignment;
+    _ = ret_addr;
+    free_pages(memory);
+}
+
+fn resize(_: *anyopaque, _: []u8, _: std.mem.Alignment, _: usize, _: usize) bool {
+    return false;
+}
+
+fn remap(_: *anyopaque, _: []u8, _: std.mem.Alignment, _: usize, _: usize) ?[*]u8 {
+    return null;
+}
