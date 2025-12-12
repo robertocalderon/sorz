@@ -51,6 +51,12 @@ pub fn kernel_main() !void {
     root.pmp.init_pmp();
 
     std.log.info("Iniciando interrupciones", .{});
+    std.log.debug("mtvec = 0x{x:0>8}", .{asm volatile ("csrr %[ret], mtvec"
+        : [ret] "=r" (-> usize),
+    )});
     try root.interrupts.init(root.phys_mem.page_alloc());
+    std.log.debug("mtvec = 0x{x:0>8}", .{asm volatile ("csrr %[ret], mtvec"
+        : [ret] "=r" (-> usize),
+    )});
     asm volatile ("ecall");
 }

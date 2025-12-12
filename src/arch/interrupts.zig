@@ -1,4 +1,5 @@
 const std = @import("std");
+const root = @import("root");
 
 pub fn init(alloc: std.mem.Allocator) !void {
     const interrupt_date = try alloc.create([4096]u8);
@@ -6,10 +7,11 @@ pub fn init(alloc: std.mem.Allocator) !void {
         :
         : [val] "r" (@intFromPtr(&interrupt_date[0]) + 4096),
     );
+    const interrupt_pointer = @intFromPtr(&_interrupt_handler);
     asm volatile (
         \\  csrw    mtvec, %[val]
         :
-        : [val] "r" (@intFromPtr(&_interrupt_handler)),
+        : [val] "r" (interrupt_pointer),
     );
     std.log.debug("Interrupt ready", .{});
 }
@@ -21,7 +23,7 @@ const InterruptFrame = struct {
 
 export fn _interrupt_handler(frame: *InterruptFrame) void {
     _ = frame;
-    std.log.debug("interrupt handler", .{});
+    @panic("Unhandled exception, aborting!!");
 }
 
 export fn _interrupt_handler_entry() align(4) callconv(.naked) void {

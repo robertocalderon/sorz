@@ -7,13 +7,11 @@ pub const phys_mem = @import("mem/phys_mem.zig");
 pub const spinlock = @import("./sync/spinlock.zig");
 pub const pmp = @import("./arch/pmp.zig");
 pub const interrupts = @import("./arch/interrupts.zig");
+pub const qemu = @import("./arch/qemu.zig");
 
 pub export fn _fw_entry() noreturn {
     main.kernel_main() catch {};
-    @as(*volatile u32, @ptrFromInt(0x100000)).* = 0x5555;
-    while (true) {
-        asm volatile ("wfi");
-    }
+    qemu.exit(.Success);
 }
 
 extern var _fw_stack_end: u8;
@@ -50,14 +48,17 @@ pub const os = struct {
     };
 };
 
+var PANIC_SERIAL_BUFFER: [128]u8 = undefined;
+
 pub fn panic(msg: []const u8, error_return_trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
+    var serial = dev.serial.Serial.default(&PANIC_SERIAL_BUFFER);
+    log.init_logging(&serial.interface);
+
     std.log.err("PANIC!!!!", .{});
     std.log.err("MSG: {s}", .{msg});
+    serial.interface.flush() catch {};
     _ = error_return_trace;
     _ = ret_addr;
     // for now exit qemu
-    @as(*volatile u32, @ptrFromInt(0x100000)).* = 0x5555;
-    while (true) {
-        asm volatile ("wfi");
-    }
+    qemu.exit(.Failure);
 }

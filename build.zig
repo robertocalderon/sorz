@@ -72,6 +72,32 @@ pub fn build(b: *std.Build) void {
 
     run_cmd.step.dependOn(b.getInstallStep());
 
+    const debug_step = b.step("debug", "start debug server");
+
+    // const run_cmd = b.addRunArtifact(exe);
+    const debug_cmd = b.addSystemCommand(&.{
+        "qemu-system-riscv32",
+        "-M",
+        "virt",
+        "-m",
+        "128M",
+        "-bios",
+        "none",
+        "-nographic",
+        "-smp",
+        "16",
+        "-serial",
+        "mon:stdio",
+        "-s",
+        "-S",
+        "-kernel",
+    });
+    debug_cmd.addFileInput(kernel.getEmittedBin());
+    debug_cmd.addFileArg(kernel.getEmittedBin());
+    debug_step.dependOn(&debug_cmd.step);
+
+    debug_cmd.step.dependOn(b.getInstallStep());
+
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
