@@ -224,13 +224,14 @@ pub fn free_pages(pages: []u8) void {
         return;
     }
 
-    if (pages.len % 4096 != 0) {
-        std.log.err("Trying to dealloc pages with length {} not page-aligned", .{pages.len});
-        return;
-    }
+    // If allocation is smaller is not page-aligned, assume it consume all the pages it is in
+    //if (pages.len % 4096 != 0) {
+    //    std.log.warn("Trying to dealloc pages with length {} not page-aligned", .{pages.len});
+    //    return;
+    //}
 
     const start_page = offset / 4096;
-    const n_pages = pages.len / 4096;
+    const n_pages = std.mem.alignForward(usize, pages.len, 4096) / 4096;
 
     // Free the corresponding bits
     for (0..n_pages) |i| {

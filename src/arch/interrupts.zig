@@ -21,7 +21,18 @@ const InterruptFrame = struct {
 };
 
 export fn _interrupt_handler(frame: *InterruptFrame) void {
-    _ = frame;
+    var panic_alloc = std.heap.FixedBufferAllocator.init(&root.PANIC_ALLOC);
+    var debug_info = @import("freestanding").DebugInfo.init(panic_alloc.allocator(), .{}) catch |err| {
+        std.log.err("panic: debug info err = {any}\n", .{err});
+        root.qemu.exit(.Failure);
+    };
+    defer debug_info.deinit();
+
+    debug_info.printStackTrace(root.log.get_current_writer(), frame.registers[1], frame.registers[8]) catch |err| {
+        std.log.err("panic: stacktrace err = {any}\n", .{err});
+        root.qemu.exit(.Failure);
+    };
+
     @panic("Unhandled exception, aborting!!");
 }
 

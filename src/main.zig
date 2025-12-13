@@ -58,5 +58,14 @@ pub fn kernel_main() !void {
     std.log.debug("mtvec = 0x{x:0>8}", .{asm volatile ("csrr %[ret], mtvec"
         : [ret] "=r" (-> usize),
     )});
-    @panic("panic test");
+    var kernel_as = try root.virt_mem.init(alloc);
+    kernel_as.activate();
+    std.log.info("Intentando saltar a modo supervisor...", .{});
+    root.privilege.lower_to_s_mode(smode_kernel_main);
+}
+
+fn smode_kernel_main() noreturn {
+    const log = std.log.scoped(.SMODE);
+    log.info("Desde modo supervisor!!", .{});
+    root.qemu.exit(.Success);
 }

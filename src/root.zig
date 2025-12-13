@@ -4,10 +4,12 @@ pub const dev = @import("dev/root.zig");
 pub const log = @import("log.zig");
 pub const main = @import("main.zig");
 pub const phys_mem = @import("mem/phys_mem.zig");
+pub const virt_mem = @import("mem/virt_mem.zig");
 pub const spinlock = @import("./sync/spinlock.zig");
 pub const pmp = @import("./arch/pmp.zig");
 pub const interrupts = @import("./arch/interrupts.zig");
 pub const qemu = @import("./arch/qemu.zig");
+pub const privilege = @import("./arch/privilege.zig");
 
 pub export fn _fw_entry() noreturn {
     main.kernel_main() catch {};
@@ -49,7 +51,7 @@ pub const os = struct {
 };
 
 var PANIC_SERIAL_BUFFER: [128]u8 = undefined;
-var PANIC_ALLOC: [16 * 1024 * 1024]u8 = undefined;
+pub var PANIC_ALLOC: [16 * 1024 * 1024]u8 = undefined;
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
     var serial = dev.serial.Serial.default(&PANIC_SERIAL_BUFFER);
