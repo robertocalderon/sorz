@@ -3,7 +3,6 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const host_target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    _ = host_target;
 
     var features_add = std.Target.riscv.featureSet(&.{});
     features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.@"32bit"));
@@ -101,6 +100,34 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
+
+    const functions_str_cmd = b.addSystemCommand(&.{
+        "llvm-objdump",
+        "-t",
+    });
+    functions_str_cmd.addFileArg(kernel.getEmittedBin());
+    functions_str_cmd.step.dependOn(&kernel.step);
+    const functions_str_cmd_out = functions_str_cmd.captureStdOut();
+    //b.getInstallStep().dependOn(&b.addInstallFile(functions_str_cmd_out, "functions_str_cmd_out").step);
+
+    const line_info = b.addExecutable(.{
+        .name = "line_info",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("utils/line_info.zig"),
+            .target = host_target,
+            .optimize = optimize,
+        }),
+    });
+
+    const line_info_gen_step = b.addRunArtifact(line_info);
+    line_info_gen_step.addFileArg(functions_str_cmd_out);
+    line_info_gen_step.addFileArg(kernel.getEmittedBin());
+    line_info_gen_step.step.dependOn(&functions_str_cmd.step);
+    line_info_gen_step.step.dependOn(&kernel.step);
+
+    const lgs = b.step("line_gen", "run linegen step");
+    lgs.dependOn(&line_info_gen_step.step);
+    b.installArtifact(line_info);
 
     const install_docs = b.addInstallDirectory(.{
         .source_dir = kernel.getEmittedDocs(),
