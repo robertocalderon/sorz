@@ -76,10 +76,20 @@ fn smode_kernel_main() !void {
     log.debug("sstatus = {any}", .{sstatus});
     sstatus.write();
 
+    const alloc = root.MEMORY_ALLOCATOR;
+
     log.debug("Iniciando PLIC...", .{});
-    var plic = dev.plic.PLIC.new();
+    plic = dev.plic.PLIC.new();
     var plic_dev = plic.get_device();
-    try plic_dev.init();
+    try plic_dev.init(alloc);
+    dev.InterruptController.set_platform_controller(plic.get_interrupt_controller());
+
+    std.log.debug("Doing real serial initialization after interrupt controller is ready", .{});
+    var serial = root.dev.serial.Serial.default(&.{});
+    var serial_dev = serial.get_device();
+    try serial_dev.init(alloc);
 
     log.err("Alcanzdo final del kernel... terminando", .{});
 }
+
+var plic: dev.plic.PLIC = undefined;
