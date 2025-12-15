@@ -28,13 +28,9 @@ pub fn kernel_main() !void {
         root.phys_mem.free_page(page);
     }
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{
-        .backing_allocator_zeroes = false,
-        .page_size = 4096,
-        .thread_safe = false,
-    }){};
-    defer _ = gpa.deinit();
-    const alloc = gpa.allocator();
+    root.GPA_ALLOC_INFO = .{};
+    const alloc = root.GPA_ALLOC_INFO.allocator();
+    root.MEMORY_ALLOCATOR = alloc;
     {
         const a0 = try alloc.create(u8);
         std.log.debug("gpa test 0: {*}", .{a0});
