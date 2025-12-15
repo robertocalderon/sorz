@@ -1,6 +1,7 @@
 pub const serial = @import("serial.zig");
 pub const clock = @import("clock/root.zig");
 pub const plic = @import("plic.zig");
+pub const InterruptController = @import("interrupt_controller.zig");
 const std = @import("std");
 
 pub const Device = struct {
