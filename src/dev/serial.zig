@@ -40,7 +40,7 @@ pub const Serial = struct {
     pub fn handle_exception(ctx: *anyopaque, state: *root.KernelThreadState) void {
         const self: *Serial = @ptrCast(@alignCast(ctx));
         _ = state;
-        self.put(self.get().?);
+        self.put(self.get() orelse return);
     }
 
     pub fn default(buffer: []u8) Serial {
