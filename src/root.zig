@@ -6,7 +6,6 @@ pub const main = @import("main.zig");
 pub const phys_mem = @import("mem/phys_mem.zig");
 pub const virt_mem = @import("mem/virt_mem.zig");
 pub const spinlock = @import("./sync/spinlock.zig");
-pub const pmp = @import("./arch/pmp.zig");
 pub const interrupts = @import("./arch/interrupts.zig");
 pub const qemu = @import("./arch/qemu.zig");
 pub const privilege = @import("./arch/privilege.zig");
