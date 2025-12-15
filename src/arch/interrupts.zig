@@ -15,8 +15,19 @@ pub fn init(alloc: std.mem.Allocator) !void {
     std.log.debug("Interrupt ready", .{});
 }
 
+pub const Cause = enum(u32) {
+    InstructionAddressMisaligned = 0,
+    InstructionAccessFault = 1,
+    IllegalInstruction = 2,
+    Breakpoint = 3,
+    LoadAddressMisaligned = 4,
+    LoadAccessFault = 5,
+    _,
+};
+
 const InterruptFrame = struct {
-    mepc: u32,
+    sepc: u32,
+    scause: Cause,
     registers: [32]u32,
 };
 
@@ -33,6 +44,15 @@ export fn _interrupt_handler(frame: *InterruptFrame) void {
         root.qemu.exit(.Failure);
     };
 
+    switch (frame.scause) {
+        .InstructionAccessFault => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
+        .InstructionAddressMisaligned => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
+        .Breakpoint => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
+        .IllegalInstruction => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
+        .LoadAccessFault => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
+        .LoadAddressMisaligned => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
+        _ => std.log.err("Unknown exception: 0x{x:0>8}", .{@intFromEnum(frame.scause)}),
+    }
     @panic("Unhandled exception, aborting!!");
 }
 
@@ -66,6 +86,8 @@ export fn _interrupt_handler_entry() align(4) callconv(.naked) void {
         \\  addi    s0, sp, 0x10
         \\
         \\  sw      ra, 0(a0)
+        \\  csrr    t0, scause
+        \\  sw      t0, 4(a0)
         \\  call    _interrupt_handler
         \\  lw      ra, 0(a0)
         \\  csrw    sepc, ra

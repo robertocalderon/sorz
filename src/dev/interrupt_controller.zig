@@ -1,17 +1,32 @@
 const std = @import("std");
+const root = @import("../root.zig");
 
 const Self = @This();
 
-pub const VTable = struct {};
+pub const Error = error{
+    non_existant_interrupt,
+};
+
+pub const VTable = struct {
+    init: *const fn (*anyopaque) void,
+    enable_interrupt_with_id: *const fn (*anyopaque, id: usize, state: *root.KernelThreatState) Error!void,
+    enable_threshold: *const fn (*anyopaque, tsh: u3, state: *root.KernelThreatState) Error!void,
+    enable_priority_with_id: *const fn (*anyopaque, id: usize, pri: u3, state: *root.KernelThreatState) Error!void,
+};
 
 vtable: *const VTable,
 ctx: *anyopaque,
 
-var platform_controller: Self = undefined;
-
-pub fn set_platform_controller(ictrl: Self) void {
-    platform_controller = ictrl;
+pub fn init(self: *Self) void {
+    return self.vtable.init(self.ctx);
 }
-pub fn get_platform_controller() *Self {
-    return &platform_controller;
+
+pub fn enable_interrupt_with_id(self: *Self, id: usize, state: *root.KernelThreatState) Error!void {
+    return self.vtable.enable_interrupt_with_id(self.ctx, id, state);
+}
+pub fn enable_threshold(self: *Self, tsh: u3, state: *root.KernelThreatState) Error!void {
+    return self.vtable.enable_threshold(self.ctx, tsh, state);
+}
+pub fn enable_priority_with_id(self: *Self, id: usize, pri: u3, state: *root.KernelThreatState) Error!void {
+    return self.vtable.enable_priority_with_id(self.ctx, id, pri, state);
 }

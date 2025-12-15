@@ -1,5 +1,6 @@
 const std = @import("std");
 const dev = @import("root.zig");
+const root = @import("../root.zig");
 
 pub const Serial = struct {
     base: *volatile u8,
@@ -14,7 +15,26 @@ pub const Serial = struct {
         };
     }
 
-    fn init(_: *anyopaque, _: std.mem.Allocator) dev.Device.Error!void {}
+    fn init(_self: *anyopaque, state: *root.KernelThreatState) dev.Device.Error!void {
+        const self: *Serial = @ptrCast(@alignCast(_self));
+        const ptr: [*]volatile u8 = @ptrCast(self.base);
+        const lcr = (1 << 0) | (1 << 1);
+        ptr[3] = lcr;
+        ptr[2] = 1 << 0;
+        ptr[1] = 1 << 0;
+        const divisor: u16 = 592;
+        const divisor_least: u8 = @intCast(divisor & 0xff);
+        const divisor_most: u8 = @intCast(divisor >> 8);
+        ptr[3] = lcr | 1 << 7;
+        ptr[0] = divisor_least;
+        ptr[1] = divisor_most;
+        ptr[3] = lcr;
+
+        var ictrl = state.platform_interrupt_controller;
+        try ictrl.enable_threshold(0, state);
+        try ictrl.enable_interrupt_with_id(10, state);
+        try ictrl.enable_priority_with_id(10, 1, state);
+    }
 
     pub fn default(buffer: []u8) Serial {
         return Serial.new(@ptrFromInt(0x10000000), buffer);

@@ -10,13 +10,18 @@ pub const interrupts = @import("./arch/interrupts.zig");
 pub const qemu = @import("./arch/qemu.zig");
 pub const registers = @import("./arch/registers.zig");
 
-pub var KERNEL_AS: virt_mem.AddressSpace = undefined;
-pub var MEMORY_ALLOCATOR: std.mem.Allocator = undefined;
-pub var GPA_ALLOC_INFO: std.heap.GeneralPurposeAllocator(.{
+pub const KERNEL_GPA = std.heap.GeneralPurposeAllocator(.{
     .backing_allocator_zeroes = false,
     .page_size = 4096,
     .thread_safe = false,
-}) = undefined;
+});
+pub const KernelThreatState = struct {
+    address_space: virt_mem.AddressSpace,
+    gpa_alloc: KERNEL_GPA,
+    alloc: std.mem.Allocator,
+    hartid: usize,
+    platform_interrupt_controller: dev.InterruptController,
+};
 
 pub export fn _fw_entry(hartid: usize, dtb: *const u8) noreturn {
     main.kernel_main(hartid, dtb) catch {};

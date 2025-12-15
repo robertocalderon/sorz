@@ -29,9 +29,8 @@ pub fn kernel_main(hartid: usize, dtb: *const u8) !void {
         root.phys_mem.free_page(page);
     }
 
-    root.GPA_ALLOC_INFO = .{};
-    const alloc = root.GPA_ALLOC_INFO.allocator();
-    root.MEMORY_ALLOCATOR = alloc;
+    var gpa = root.KERNEL_GPA{};
+    const alloc = gpa.allocator();
     {
         const a0 = try alloc.create(u8);
         std.log.debug("gpa test 0: {*}", .{a0});
@@ -58,16 +57,26 @@ pub fn kernel_main(hartid: usize, dtb: *const u8) !void {
     log.debug("sstatus = {any}", .{sstatus});
     sstatus.write();
 
+    const kernel_threat_state: *root.KernelThreatState = try alloc.create(root.KernelThreatState);
+    kernel_threat_state.* = .{
+        .address_space = kernel_as,
+        .alloc = alloc,
+        .gpa_alloc = gpa,
+        .hartid = hartid,
+        .platform_interrupt_controller = undefined,
+    };
+
     log.debug("Iniciando PLIC...", .{});
     plic = dev.plic.PLIC.new();
     var plic_dev = plic.get_device();
-    try plic_dev.init(alloc);
-    dev.InterruptController.set_platform_controller(plic.get_interrupt_controller());
+    try plic_dev.init(kernel_threat_state);
+    kernel_threat_state.platform_interrupt_controller = plic.get_interrupt_controller();
+    kernel_threat_state.platform_interrupt_controller.init();
 
     std.log.debug("Doing real serial initialization after interrupt controller is ready", .{});
 
     var serial_dev = serial.get_device();
-    try serial_dev.init(alloc);
+    try serial_dev.init(kernel_threat_state);
 
     while (true) {
         asm volatile ("wfi");
