@@ -18,8 +18,8 @@ pub var GPA_ALLOC_INFO: std.heap.GeneralPurposeAllocator(.{
     .thread_safe = false,
 }) = undefined;
 
-pub export fn _fw_entry() noreturn {
-    main.kernel_main() catch {};
+pub export fn _fw_entry(hartid: usize, dtb: *const u8) noreturn {
+    main.kernel_main(hartid, dtb) catch {};
     qemu.exit(.Success);
 }
 
@@ -28,11 +28,18 @@ extern var _fw_stack_end: u8;
 pub export fn _start() linksection(".text.start") callconv(.naked) void {
     @setRuntimeSafety(false);
     asm volatile (
+        \\  mv  t0, a0
+        \\  mv  t1, a1
+    );
+    asm volatile (
+        \\  mv      a0, a0
         \\  csrw    satp, zero
         \\  addi    sp, sp, -16
         \\  sw      zero, 4(sp)
         \\  sw      zero, 0(sp)
         \\  addi    s0, sp, 16
+        \\  mv      a0, t0
+        \\  mv      a1, t1
         \\  call    _fw_entry
         :
         : [_SP] "{sp}" (@as(usize, @intFromPtr(&_fw_stack_end))),

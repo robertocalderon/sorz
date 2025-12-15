@@ -4,14 +4,16 @@ const std = @import("std");
 
 pub var SERIAL_BUFFER: [128]u8 = undefined;
 
-pub fn kernel_main() !void {
+pub fn kernel_main(hartid: usize, dtb: *const u8) !void {
+    _ = dtb;
+
     const clock = dev.clock.Clock.mtime();
     var serial = dev.serial.Serial.default(&SERIAL_BUFFER);
 
     root.log.init_logging(&serial.interface);
     root.log.set_default_clock(clock);
 
-    std.log.info("Iniciando kernel...", .{});
+    std.log.info("Iniciando kernel... (hartid = {})", .{hartid});
 
     std.log.info("Iniciando reservador de memoria fisica", .{});
     root.phys_mem.init_physical_alloc();
