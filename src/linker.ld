@@ -1,6 +1,7 @@
 ENTRY(_start);
 
-. = 0x80000000;
+/* offset to avoid bios */
+. = 0x80200000;
 MEM_START = .;
 MEM_SIZE = 128M;
 MEM_END = MEM_START + MEM_SIZE;
