@@ -41,9 +41,16 @@ fn mtime_now(_: *Clock) ClockError!Instant {
     var high2: u32 = undefined;
 
     while (true) {
-        high = MTIME_HIGH.*;
-        low = MTIME_LOW.*;
-        high2 = MTIME_HIGH.*;
+        high = asm volatile ("rdtimeh %[ret]"
+            : [ret] "=r" (-> usize),
+        );
+        low = asm volatile ("rdtime %[ret]"
+            : [ret] "=r" (-> usize),
+        );
+        high2 = asm volatile ("rdtimeh %[ret]"
+            : [ret] "=r" (-> usize),
+        );
+
         if (high == high2) {
             const raw = @as(u64, @intCast(low)) | (@as(u64, @intCast(high)) << 32);
             // QEMU clock runs at 10MHz
