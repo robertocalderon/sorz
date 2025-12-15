@@ -82,3 +82,37 @@ pub const SStatus = packed struct {
         );
     }
 };
+
+pub const SIE = packed union {
+    raw: u32,
+    bits: packed struct {
+        _0: u1,
+        supervisor_software: u1,
+        _1: u3,
+        supervisor_timer: u1,
+        _2: u3,
+        supervisor_external: u1,
+        _3: u3,
+        counter_overflow: u1,
+    },
+
+    pub fn read() SIE {
+        comptime {
+            if (@bitSizeOf(SIE) != @bitSizeOf(u32)) {
+                @compileError("Invalid size of SIE, check definiton");
+            }
+        }
+
+        const raw = asm volatile ("csrr %[ret], sie"
+            : [ret] "=r" (-> usize),
+        );
+        return @bitCast(raw);
+    }
+    pub fn write(self: SIE) void {
+        asm volatile (
+            \\  csrw    sie, %[val]
+            :
+            : [val] "r" (@as(usize, @bitCast(self))),
+        );
+    }
+};
