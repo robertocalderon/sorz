@@ -12,6 +12,7 @@ pub const VTable = struct {
     enable_interrupt_with_id: *const fn (*anyopaque, id: usize, state: *root.KernelThreadState) Error!void,
     enable_threshold: *const fn (*anyopaque, tsh: u3, state: *root.KernelThreadState) Error!void,
     enable_priority_with_id: *const fn (*anyopaque, id: usize, pri: u3, state: *root.KernelThreadState) Error!void,
+    register_interrupt_callback: *const fn (*anyopaque, id: usize, callback: *const fn (*anyopaque, *root.KernelThreadState) void, ctx: *anyopaque, state: *root.KernelThreadState) Error!void,
 };
 
 vtable: *const VTable,
@@ -29,4 +30,7 @@ pub fn enable_threshold(self: *Self, tsh: u3, state: *root.KernelThreadState) Er
 }
 pub fn enable_priority_with_id(self: *Self, id: usize, pri: u3, state: *root.KernelThreadState) Error!void {
     return self.vtable.enable_priority_with_id(self.ctx, id, pri, state);
+}
+pub fn register_interrupt_callback(self: *Self, id: usize, callback: *const fn (*anyopaque, *root.KernelThreadState) void, ctx: *anyopaque, state: *root.KernelThreadState) Error!void {
+    return self.vtable.register_interrupt_callback(self.ctx, id, callback, ctx, state);
 }

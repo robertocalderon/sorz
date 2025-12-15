@@ -36,12 +36,12 @@ pub const PLIC = struct {
         }
     };
     const Callback = struct {
-        callback: *const fn (*anyopaque) void,
+        fun: *const fn (*anyopaque, *root.KernelThreadState) void,
         ctx: *anyopaque,
     };
 
     registers: *Registers,
-    callbacks: []Callback,
+    callbacks: []?Callback,
 
     pub fn new() Self {
         return .{
@@ -52,7 +52,10 @@ pub const PLIC = struct {
 
     fn init(_self: *anyopaque, state: *root.KernelThreadState) dev.Device.Error!void {
         const self: *Self = @ptrCast(@alignCast(_self));
-        self.callbacks = try state.alloc.alloc(Callback, 32);
+        self.callbacks = try state.alloc.alloc(?Callback, 32);
+        for (0..self.callbacks.len) |i| {
+            self.callbacks[i] = null;
+        }
     }
     fn init_interrupt_controller(_self: *anyopaque) void {
         const self: *Self = @ptrCast(@alignCast(_self));
@@ -74,9 +77,12 @@ pub const PLIC = struct {
     fn handle_external_supervisor_interrpt(frame: *root.interrupts.InterruptFrame) void {
         const ictrl: *Self = @ptrCast(@alignCast(frame.thread_state.platform_interrupt_controller.ctx));
         const id = ictrl.claim_interrupt(frame.thread_state) orelse return;
+        if (id > 0 and id < ictrl.callbacks.len) {
+            if (ictrl.callbacks[id]) |callback| {
+                callback.fun(callback.ctx, frame.thread_state);
+            }
+        }
         ictrl.complete_interrupt(id, frame.thread_state);
-        var serial = root.dev.serial.Serial.default(&.{});
-        serial.put(serial.get().?);
     }
 
     pub fn enable_interrupt_with_id(_self: *anyopaque, id: usize, state: *root.KernelThreadState) dev.InterruptController.Error!void {
@@ -93,6 +99,20 @@ pub const PLIC = struct {
         const self: *Self = @ptrCast(@alignCast(_self));
         std.log.debug("Set PLIC interrupt bit {d} threshold = {} {*}", .{ id, pri, &self.registers.interrupt_source_priority[id] });
         self.registers.interrupt_source_priority[id] = @intCast(pri);
+    }
+    pub fn register_interrupt_callback(_self: *anyopaque, id: usize, callback: *const fn (*anyopaque, *root.KernelThreadState) void, ctx: *anyopaque, state: *root.KernelThreadState) dev.InterruptController.Error!void {
+        const self: *Self = @ptrCast(@alignCast(_self));
+        if (id == 0) {
+            return dev.InterruptController.Error.non_existant_interrupt;
+        }
+        if (id >= self.callbacks.len) {
+            return dev.InterruptController.Error.non_existant_interrupt;
+        }
+        self.callbacks[id] = .{
+            .fun = callback,
+            .ctx = ctx,
+        };
+        _ = state;
     }
 
     pub fn claim_interrupt(self: *Self, state: *root.KernelThreadState) ?usize {
@@ -121,6 +141,7 @@ pub const PLIC = struct {
                 .enable_interrupt_with_id = &enable_interrupt_with_id,
                 .enable_priority_with_id = &enable_priority_with_id,
                 .enable_threshold = &enable_threshold,
+                .register_interrupt_callback = &register_interrupt_callback,
             },
         };
     }

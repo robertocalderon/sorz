@@ -34,6 +34,13 @@ pub const Serial = struct {
         try ictrl.enable_threshold(0, state);
         try ictrl.enable_interrupt_with_id(10, state);
         try ictrl.enable_priority_with_id(10, 1, state);
+
+        try ictrl.register_interrupt_callback(10, &handle_exception, @ptrCast(self), state);
+    }
+    pub fn handle_exception(ctx: *anyopaque, state: *root.KernelThreadState) void {
+        const self: *Serial = @ptrCast(@alignCast(ctx));
+        _ = state;
+        self.put(self.get().?);
     }
 
     pub fn default(buffer: []u8) Serial {
