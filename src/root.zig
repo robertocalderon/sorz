@@ -10,6 +10,7 @@ pub const pmp = @import("./arch/pmp.zig");
 pub const interrupts = @import("./arch/interrupts.zig");
 pub const qemu = @import("./arch/qemu.zig");
 pub const privilege = @import("./arch/privilege.zig");
+pub const registers = @import("./arch/registers.zig");
 
 pub export fn _fw_entry() noreturn {
     main.kernel_main() catch {};

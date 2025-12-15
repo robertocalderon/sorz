@@ -67,5 +67,10 @@ pub fn kernel_main() !void {
 fn smode_kernel_main() noreturn {
     const log = std.log.scoped(.SMODE);
     log.info("Desde modo supervisor!!", .{});
+    log.debug("Configurando sstatus...", .{});
+    const sstatus = root.registers.supervisor.SStatus.read();
+    log.debug("sstatus = {any}", .{sstatus});
+    sstatus.write();
+    log.err("Alcanzdo final del kernel... terminando", .{});
     root.qemu.exit(.Success);
 }
