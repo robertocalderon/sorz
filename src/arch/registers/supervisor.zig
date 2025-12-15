@@ -63,6 +63,12 @@ pub const SStatus = packed struct {
     SD: u1,
 
     pub fn read() SStatus {
+        comptime {
+            if (@bitSizeOf(SStatus) != @bitSizeOf(u32)) {
+                @compileError("Invalid size of SStatus, check definiton");
+            }
+        }
+
         const raw = asm volatile ("csrr %[ret], sstatus"
             : [ret] "=r" (-> usize),
         );
@@ -76,9 +82,3 @@ pub const SStatus = packed struct {
         );
     }
 };
-
-comptime {
-    if (@bitSizeOf(SStatus) != @bitSizeOf(u32)) {
-        @compileError("Invalid size of SStatus, check definiton");
-    }
-}
