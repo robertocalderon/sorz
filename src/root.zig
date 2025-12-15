@@ -12,6 +12,8 @@ pub const qemu = @import("./arch/qemu.zig");
 pub const privilege = @import("./arch/privilege.zig");
 pub const registers = @import("./arch/registers.zig");
 
+pub var KERNEL_AS: virt_mem.AddressSpace = undefined;
+
 pub export fn _fw_entry() noreturn {
     main.kernel_main() catch {};
     qemu.exit(.Success);

@@ -61,6 +61,7 @@ pub fn kernel_main() !void {
     var kernel_as = try root.virt_mem.init(alloc);
     kernel_as.activate();
     std.log.info("Intentando saltar a modo supervisor...", .{});
+    root.KERNEL_AS = kernel_as;
     root.privilege.lower_to_s_mode(smode_kernel_main);
 }
 
