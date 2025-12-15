@@ -69,6 +69,10 @@ pub fn kernel_main(hartid: usize, dtb: *const u8) !void {
     var serial_dev = serial.get_device();
     try serial_dev.init(alloc);
 
+    while (true) {
+        asm volatile ("wfi");
+    }
+
     log.err("Alcanzdo final del kernel... terminando", .{});
 }
 
