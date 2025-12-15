@@ -9,14 +9,12 @@ pub const Serial = struct {
         return .{
             .ctx = @ptrCast(self),
             .vtable = &dev.Device.VTable{
-                .init = @ptrCast(&Serial.init),
+                .init = &Serial.init,
             },
         };
     }
 
-    pub fn init(self: *Serial) dev.Device.Error!void {
-        _ = self;
-    }
+    fn init(_: *anyopaque, _: std.mem.Allocator) dev.Device.Error!void {}
 
     pub fn default(buffer: []u8) Serial {
         return Serial.new(@ptrFromInt(0x10000000), buffer);
