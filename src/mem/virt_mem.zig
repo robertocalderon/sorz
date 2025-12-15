@@ -241,7 +241,7 @@ pub fn map_page(alloc: ?std.mem.Allocator, as: AddressSpace, phys: PhysicalAddre
     };
 }
 
-pub fn umap_page(alloc: ?std.mem.Allocator, as: AddressSpace, virt: VirtualAddress) !void {
+pub fn unmap_page(alloc: ?std.mem.Allocator, as: AddressSpace, virt: VirtualAddress) !void {
     std.debug.assert(virt.offset == 0);
     const table = as.root_page;
     const first_level_entry = table[virt.vpn1];
@@ -300,4 +300,36 @@ pub fn umap_page(alloc: ?std.mem.Allocator, as: AddressSpace, virt: VirtualAddre
         .A = 1,
         .D = 1,
     };
+}
+
+pub fn map_page_range(alloc: ?std.mem.Allocator, as: AddressSpace, phys: PhysicalAddress, virt: VirtualAddress, n_pages: usize, flags: AccessFlags) !void {
+    std.debug.assert(virt.offset == 0);
+
+    var mapped_pages: usize = 0;
+    var failed: bool = false;
+
+    for (0..n_pages) |i| {
+        const start_addr: u32 = @bitCast(virt);
+        const current_addr = start_addr + (i * 4096);
+        const current_page: VirtualAddress = @bitCast(current_addr);
+
+        const start_phys_addr: u32 = @as(u32, @bitCast(@as(u34, @bitCast(phys))));
+        const current_phys_addr = start_phys_addr + (i * 4096);
+        const current_phys_page: PhysicalAddress = @bitCast(current_phys_addr);
+
+        map_page(alloc, as, current_phys_page, current_page, flags) catch {
+            failed = true;
+            break;
+        };
+        mapped_pages += 1;
+    }
+    if (failed) {
+        for (0..failed) |i| {
+            const start_addr: u32 = @bitCast(virt);
+            const current_addr = start_addr + (i * 4096);
+            const current_page: VirtualAddress = @bitCast(current_addr);
+            unmap_page(alloc, as, current_page);
+        }
+        return std.mem.Allocator.Error.OutOfMemory;
+    }
 }
