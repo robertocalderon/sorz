@@ -50,13 +50,17 @@ pub const PLIC = struct {
         };
     }
 
-    fn init(_self: *anyopaque, state: *root.KernelThreatState) dev.Device.Error!void {
+    fn init(_self: *anyopaque, state: *root.KernelThreadState) dev.Device.Error!void {
         const self: *Self = @ptrCast(@alignCast(_self));
         self.callbacks = try state.alloc.alloc(Callback, 32);
     }
     fn init_interrupt_controller(_self: *anyopaque) void {
         const self: *Self = @ptrCast(@alignCast(_self));
         _ = self;
+
+        const iframe = root.interrupts.get_current_interrupt_frame();
+        iframe.external_interrupt_handler = &handle_external_supervisor_interrpt;
+
         var sie = registers.supervisor.SIE.read();
         sie.bits.supervisor_external = 1;
         sie.write();
@@ -67,21 +71,38 @@ pub const PLIC = struct {
         sstatus.SIE = 1;
         sstatus.write();
     }
+    fn handle_external_supervisor_interrpt(frame: *root.interrupts.InterruptFrame) void {
+        const ictrl: *Self = @ptrCast(@alignCast(frame.thread_state.platform_interrupt_controller.ctx));
+        const id = ictrl.claim_interrupt(frame.thread_state) orelse return;
+        ictrl.complete_interrupt(id, frame.thread_state);
+        var serial = root.dev.serial.Serial.default(&.{});
+        serial.put(serial.get().?);
+    }
 
-    pub fn enable_interrupt_with_id(_self: *anyopaque, id: usize, state: *root.KernelThreatState) dev.InterruptController.Error!void {
+    pub fn enable_interrupt_with_id(_self: *anyopaque, id: usize, state: *root.KernelThreadState) dev.InterruptController.Error!void {
         const self: *Self = @ptrCast(@alignCast(_self));
         std.log.debug("Enabling PLIC interrupt bit {d} on hart {d} {*}", .{ id, state.hartid, &self.registers.enable_bit_sources[state.hartid][1][id / 32] });
         self.registers.enable_bit_sources[state.hartid][1][id / 32] |= @as(u32, 1) << @intCast(id % 32);
     }
-    pub fn enable_threshold(_self: *anyopaque, tsh: u3, state: *root.KernelThreatState) dev.InterruptController.Error!void {
+    pub fn enable_threshold(_self: *anyopaque, tsh: u3, state: *root.KernelThreadState) dev.InterruptController.Error!void {
         const self: *Self = @ptrCast(@alignCast(_self));
         std.log.debug("Set PLIC threshold = {}, on hart {d} {*}", .{ tsh, state.hartid, &self.registers.priority_threshold[state.hartid][1][0] });
         self.registers.priority_threshold[state.hartid][1][0] = @intCast(tsh);
     }
-    pub fn enable_priority_with_id(_self: *anyopaque, id: usize, pri: u3, _: *root.KernelThreatState) dev.InterruptController.Error!void {
+    pub fn enable_priority_with_id(_self: *anyopaque, id: usize, pri: u3, _: *root.KernelThreadState) dev.InterruptController.Error!void {
         const self: *Self = @ptrCast(@alignCast(_self));
         std.log.debug("Set PLIC interrupt bit {d} threshold = {} {*}", .{ id, pri, &self.registers.interrupt_source_priority[id] });
         self.registers.interrupt_source_priority[id] = @intCast(pri);
+    }
+
+    pub fn claim_interrupt(self: *Self, state: *root.KernelThreadState) ?usize {
+        const next = self.registers.priority_threshold[state.hartid][1][1];
+        if (next == 0)
+            return null;
+        return next;
+    }
+    pub fn complete_interrupt(self: *Self, id: usize, state: *root.KernelThreadState) void {
+        self.registers.priority_threshold[state.hartid][1][1] = @intCast(id);
     }
 
     pub fn get_device(self: *Self) dev.Device {

@@ -15,7 +15,7 @@ pub const KERNEL_GPA = std.heap.GeneralPurposeAllocator(.{
     .page_size = 4096,
     .thread_safe = false,
 });
-pub const KernelThreatState = struct {
+pub const KernelThreadState = struct {
     address_space: virt_mem.AddressSpace,
     gpa_alloc: KERNEL_GPA,
     alloc: std.mem.Allocator,
@@ -71,20 +71,22 @@ pub var PANIC_ALLOC: [16 * 1024 * 1024]u8 = undefined;
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
     var serial = dev.serial.Serial.default(&PANIC_SERIAL_BUFFER);
     log.init_logging(&serial.interface);
-    var panic_alloc = std.heap.FixedBufferAllocator.init(&PANIC_ALLOC);
+    const panic_alloc = std.heap.FixedBufferAllocator.init(&PANIC_ALLOC);
 
     std.log.err("PANIC!!!!", .{});
     std.log.err("MSG: {s}", .{msg});
-    var debug_info = @import("freestanding").DebugInfo.init(panic_alloc.allocator(), .{}) catch |err| {
-        std.log.err("panic: debug info err = {any}\n", .{err});
-        qemu.exit(.Failure);
-    };
-    defer debug_info.deinit();
+    _ = panic_alloc;
+    _ = ret_addr;
+    // var debug_info = @import("freestanding").DebugInfo.init(panic_alloc.allocator(), .{}) catch |err| {
+    //     std.log.err("panic: debug info err = {any}\n", .{err});
+    //     qemu.exit(.Failure);
+    // };
+    // defer debug_info.deinit();
 
-    debug_info.printStackTrace(log.get_current_writer(), ret_addr orelse @returnAddress(), @frameAddress()) catch |err| {
-        std.log.err("panic: stacktrace err = {any}\n", .{err});
-        qemu.exit(.Failure);
-    };
+    // debug_info.printStackTrace(log.get_current_writer(), ret_addr orelse @returnAddress(), @frameAddress()) catch |err| {
+    //     std.log.err("panic: stacktrace err = {any}\n", .{err});
+    //     qemu.exit(.Failure);
+    // };
 
     serial.interface.flush() catch {};
     // for now exit qemu

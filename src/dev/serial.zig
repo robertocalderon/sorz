@@ -15,7 +15,7 @@ pub const Serial = struct {
         };
     }
 
-    fn init(_self: *anyopaque, state: *root.KernelThreatState) dev.Device.Error!void {
+    fn init(_self: *anyopaque, state: *root.KernelThreadState) dev.Device.Error!void {
         const self: *Serial = @ptrCast(@alignCast(_self));
         const ptr: [*]volatile u8 = @ptrCast(self.base);
         const lcr = (1 << 0) | (1 << 1);
@@ -47,6 +47,16 @@ pub const Serial = struct {
                 .flush = &Serial.flush,
             } },
         };
+    }
+    pub fn put(self: *Serial, data: u8) void {
+        self.base.* = data;
+    }
+    pub fn get(self: *Serial) ?u8 {
+        const ptr: [*]volatile u8 = @ptrCast(self.base);
+        if (ptr[5] & 1 == 0) {
+            return null;
+        }
+        return ptr[0];
     }
 
     fn drain(w: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {

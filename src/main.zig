@@ -43,10 +43,10 @@ pub fn kernel_main(hartid: usize, dtb: *const u8) !void {
         alloc.destroy(a2);
     }
 
-    std.log.info("Iniciando PMPs", .{});
+    const kernel_threat_state: *root.KernelThreadState = try alloc.create(root.KernelThreadState);
 
     std.log.info("Iniciando interrupciones", .{});
-    try root.interrupts.init(root.phys_mem.page_alloc());
+    try root.interrupts.init(root.phys_mem.page_alloc(), kernel_threat_state);
     var kernel_as = try root.virt_mem.init(alloc);
     kernel_as.activate();
 
@@ -57,7 +57,6 @@ pub fn kernel_main(hartid: usize, dtb: *const u8) !void {
     log.debug("sstatus = {any}", .{sstatus});
     sstatus.write();
 
-    const kernel_threat_state: *root.KernelThreatState = try alloc.create(root.KernelThreatState);
     kernel_threat_state.* = .{
         .address_space = kernel_as,
         .alloc = alloc,
