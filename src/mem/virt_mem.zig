@@ -131,6 +131,19 @@ const PageTableEntry = packed struct {
     D: u1 = 1,
     RSW: u2,
     ppn: PhysicalPageNumber,
+
+    pub fn is_branch(self: PageTableEntry) bool {
+        if (self.access_flags.R != 0) return false;
+        if (self.access_flags.W != 0) return false;
+        if (self.access_flags.X != 0) return false;
+        return true;
+    }
+    pub fn get_inner(self: PageTableEntry) *PageTable {
+        return @bitCast(PhysicalAddress{
+            .offset = 0,
+            .ppn = self.ppn,
+        });
+    }
 };
 const PageTable = [1024]PageTableEntry;
 
@@ -170,4 +183,121 @@ pub fn init(alloc: std.mem.Allocator) !AddressSpace {
     std.log.debug("0x8000_0000: {any}: 0x{x:0>8}", .{ root_table[512], @as(u32, @bitCast(root_table[512])) });
     std.log.debug("0x8040_0000: {any}: 0x{x:0>8}", .{ root_table[513], @as(u32, @bitCast(root_table[513])) });
     return .{ .root_page = root_table };
+}
+
+/// Try to map a page, allocating memory if needed
+pub fn map_page(alloc: ?std.mem.Allocator, as: AddressSpace, phys: PhysicalAddress, virt: VirtualAddress, flags: AccessFlags) !void {
+    std.debug.assert(phys.offset == 0);
+    std.debug.assert(virt.offset == 0);
+
+    const table = as.root_page;
+    const first_level_entry = table[virt.vpn1];
+    var second_level_table: *PageTable = undefined;
+
+    if (first_level_entry.is_branch()) {
+        std.debug.assert(first_level_entry.ppn.ppn0 == 0);
+
+        const r_alloc = alloc orelse return std.mem.Allocator.Error.OutOfMemory;
+        var page = try r_alloc.create(PageTable);
+
+        for (0..1024) |i| {
+            const current_addr = PhysicalPageNumber{
+                .ppn0 = @intCast(i),
+                .ppn1 = first_level_entry.ppn.ppn1,
+            };
+            page[i] = PageTableEntry{
+                .V = first_level_entry.V,
+                .access_flags = first_level_entry.access_flags,
+                .RSW = first_level_entry.RSW,
+                .G = first_level_entry.G,
+                .A = first_level_entry.A,
+                .D = first_level_entry.D,
+                .ppn = current_addr,
+            };
+        }
+
+        second_level_table = page;
+        const page_addr: PhysicalAddress = @bitCast(page);
+        first_level_entry.V = 1;
+        first_level_entry.access_flags = .{
+            .R = 0,
+            .W = 0,
+            .X = 0,
+            .U = first_level_entry.access_flags.U,
+        };
+        first_level_entry.ppn = page_addr;
+    } else {
+        second_level_table = first_level_entry.get_inner();
+    }
+    const second_level_entry = second_level_table[virt.vpn0];
+    second_level_entry = .{
+        .V = 1,
+        .G = 0,
+        .access_flags = flags,
+        .RSW = 0,
+        .ppn = phys.ppn,
+        .A = 1,
+        .D = 1,
+    };
+}
+
+pub fn umap_page(alloc: ?std.mem.Allocator, as: AddressSpace, virt: VirtualAddress) !void {
+    std.debug.assert(virt.offset == 0);
+    const table = as.root_page;
+    const first_level_entry = table[virt.vpn1];
+    var second_level_table: *PageTable = undefined;
+
+    if (first_level_entry.is_branch()) {
+        std.debug.assert(first_level_entry.ppn.ppn0 == 0);
+
+        const r_alloc = alloc orelse return std.mem.Allocator.Error.OutOfMemory;
+        var page = try r_alloc.create(PageTable);
+
+        for (0..1024) |i| {
+            const current_addr = PhysicalPageNumber{
+                .ppn0 = @intCast(i),
+                .ppn1 = first_level_entry.ppn.ppn1,
+            };
+            page[i] = PageTableEntry{
+                .V = first_level_entry.V,
+                .access_flags = first_level_entry.access_flags,
+                .RSW = first_level_entry.RSW,
+                .G = first_level_entry.G,
+                .A = first_level_entry.A,
+                .D = first_level_entry.D,
+                .ppn = current_addr,
+            };
+        }
+
+        second_level_table = page;
+        const page_addr: PhysicalAddress = @bitCast(page);
+        first_level_entry.V = 1;
+        first_level_entry.access_flags = .{
+            .R = 0,
+            .W = 0,
+            .X = 0,
+            .U = first_level_entry.access_flags.U,
+        };
+        first_level_entry.ppn = page_addr;
+    } else {
+        second_level_table = first_level_entry.get_inner();
+    }
+    const second_level_entry = second_level_table[virt.vpn0];
+    second_level_entry = .{
+        .V = 0,
+        .G = 0,
+        .access_flags = .{
+            .R = 0,
+            .U = 0,
+            .W = 0,
+            .X = 0,
+        },
+        .RSW = 0,
+        .ppn = .{
+            .ppn0 = 0,
+            .ppn1 = 0,
+        },
+        .A = 1,
+        .D = 1,
+    };
 }
