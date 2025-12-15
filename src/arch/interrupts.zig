@@ -3,12 +3,12 @@ const root = @import("root");
 
 pub fn init(alloc: std.mem.Allocator) !void {
     const interrupt_date = try alloc.create([4096]u8);
-    asm volatile ("csrw mscratch, %[val]"
+    asm volatile ("csrw sscratch, %[val]"
         :
         : [val] "r" (@intFromPtr(&interrupt_date[0]) + 4096),
     );
     asm volatile (
-        \\  csrw    mtvec, %[val]
+        \\  csrw    stvec, %[val]
         :
         : [val] "r" (@intFromPtr(&_interrupt_handler_entry)),
     );
@@ -39,7 +39,7 @@ export fn _interrupt_handler(frame: *InterruptFrame) void {
 export fn _interrupt_handler_entry() align(4) callconv(.naked) void {
     // Prologo
     asm volatile (
-        \\ csrrw    x1, mscratch, x1
+        \\ csrrw    x1, sscratch, x1
         \\ addi     x1, x1, -128
         \\ sw       x0, 0(x1)
     );
@@ -49,17 +49,17 @@ export fn _interrupt_handler_entry() align(4) callconv(.naked) void {
     }
     asm volatile (
         \\  mv      a0, x1
-        \\  csrr    x1, mscratch
+        \\  csrr    x1, sscratch
         \\  sw      x1, 4(a0)
     ++ std.fmt.comptimePrint("\naddi  a0, a0, {d}\n", .{-(@sizeOf(InterruptFrame) - 128)}) //
     ++ std.fmt.comptimePrint("addi  t0, a0, {d}\n", .{@sizeOf(InterruptFrame)}) ++
-        \\  csrw    mscratch, t0
+        \\  csrw    sscratch, t0
         \\  mv      sp, a0
     );
 
     // handle interrupt
     asm volatile (
-        \\  csrr    ra, mepc
+        \\  csrr    ra, sepc
         \\  addi    sp, sp, -0x10
         \\  sw      ra, 0xc(sp)
         \\  sw      s0, 0x8(sp)
@@ -68,16 +68,16 @@ export fn _interrupt_handler_entry() align(4) callconv(.naked) void {
         \\  sw      ra, 0(a0)
         \\  call    _interrupt_handler
         \\  lw      ra, 0(a0)
-        \\  csrw    mepc, ra
+        \\  csrw    sepc, ra
         \\  addi    sp, sp, 0x10
     );
 
     // epilogo
     asm volatile (
-        \\  csrr    x1, mscratch
+        \\  csrr    x1, sscratch
         \\  addi    x1, x1, -128
         \\  lw      t0, 4(x4)
-        \\ csrw     mscratch, t0
+        \\ csrw     sscratch, t0
     );
     inline for (2..32) |i| {
         @setEvalBranchQuota(20000);
@@ -86,7 +86,7 @@ export fn _interrupt_handler_entry() align(4) callconv(.naked) void {
     }
     asm volatile (
         \\  addi    x1, x1, 128
-        \\  csrrw   x1, mscratch, x1
+        \\  csrrw   x1, sscratch, x1
         \\  mret
     );
 }
