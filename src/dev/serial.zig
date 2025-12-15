@@ -1,8 +1,22 @@
 const std = @import("std");
+const dev = @import("root.zig");
 
 pub const Serial = struct {
     base: *volatile u8,
     interface: std.Io.Writer,
+
+    pub fn get_device(self: *Serial) dev.Device {
+        return .{
+            .ctx = @ptrCast(self),
+            .vtable = &dev.Device.VTable{
+                .init = @ptrCast(&Serial.init),
+            },
+        };
+    }
+
+    pub fn init(self: *Serial) dev.Device.Error!void {
+        _ = self;
+    }
 
     pub fn default(buffer: []u8) Serial {
         return Serial.new(@ptrFromInt(0x10000000), buffer);

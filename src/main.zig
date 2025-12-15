@@ -62,16 +62,28 @@ pub fn kernel_main() !void {
     kernel_as.activate();
     std.log.info("Intentando saltar a modo supervisor...", .{});
     root.KERNEL_AS = kernel_as;
-    root.privilege.lower_to_s_mode(smode_kernel_main);
+    root.privilege.lower_to_s_mode(smode_kernel_entry);
 }
 
-fn smode_kernel_main() noreturn {
+fn smode_kernel_entry() noreturn {
+    smode_kernel_main() catch |e| {
+        std.debug.panic("Panic on smode_kernel_main!!! err: {}", .{e});
+    };
+    root.qemu.exit(.Success);
+}
+
+fn smode_kernel_main() !void {
     const log = std.log.scoped(.SMODE);
     log.info("Desde modo supervisor!!", .{});
     log.debug("Configurando sstatus...", .{});
     const sstatus = root.registers.supervisor.SStatus.read();
     log.debug("sstatus = {any}", .{sstatus});
     sstatus.write();
+
+    log.debug("Iniciando PLIC...", .{});
+    var plic = dev.plic.PLIC.new();
+    var plic_dev = plic.get_device();
+    try plic_dev.init();
+
     log.err("Alcanzdo final del kernel... terminando", .{});
-    root.qemu.exit(.Success);
 }
