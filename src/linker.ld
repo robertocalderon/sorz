@@ -3,7 +3,7 @@ ENTRY(_start);
 /* offset to avoid bios */
 . = 0x80200000;
 MEM_START = .;
-MEM_SIZE = 128M;
+MEM_SIZE = 0x80000000 + 128M - 0x80200000;
 MEM_END = MEM_START + MEM_SIZE;
 
 SECTIONS {
