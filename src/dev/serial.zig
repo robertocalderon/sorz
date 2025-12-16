@@ -83,6 +83,7 @@ pub const Serial = struct {
         }
         for (0..splat) |_| {
             for (data[data.len - 1]) |c| {
+                written += 1;
                 self.base.* = c;
             }
         }

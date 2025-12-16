@@ -53,7 +53,7 @@ pub fn kernel_main(hartid: usize, dtb: *const u8) !void {
     const log = std.log.scoped(.SMODE);
     log.info("Desde modo supervisor!!", .{});
     log.debug("Configurando sstatus...", .{});
-    const sstatus = root.registers.supervisor.SStatus.read();
+    var sstatus = root.registers.supervisor.SStatus.read();
     log.debug("sstatus = {any}", .{sstatus});
     sstatus.write();
 
@@ -72,14 +72,32 @@ pub fn kernel_main(hartid: usize, dtb: *const u8) !void {
     kernel_threat_state.platform_interrupt_controller = plic.get_interrupt_controller();
     kernel_threat_state.platform_interrupt_controller.init();
 
-    std.log.debug("Doing real serial initialization after interrupt controller is ready", .{});
+    log.debug("Doing real serial initialization after interrupt controller is ready", .{});
 
     var serial_dev = serial.get_device();
     try serial_dev.init(kernel_threat_state);
 
-    while (true) {
-        asm volatile ("wfi");
-    }
+    log.info("Creando primer proceso", .{});
+    var proc = try root.process.Process.new(alloc);
+    const init = &@import("init.zig").init;
+    proc.ip = @intFromPtr(init);
+    proc.address_space.map_all_kernel_identity();
+    try proc.address_space.map_page(alloc, @bitCast(@as(u34, @intCast(@intFromPtr(init)))), @bitCast(@intFromPtr(init)), .rwx_user());
+    log.debug("init loc = 0x{x:0>8}", .{@intFromPtr(init)});
+    proc.address_space.activate();
+
+    // drop to u-mode
+    sstatus = root.registers.supervisor.SStatus.read();
+    sstatus.SPP = .User;
+    sstatus.write();
+    asm volatile (
+        \\  csrw    sepc, %[val]
+        \\  mv      sp, %[nsp]
+        \\  sret
+        :
+        : [val] "r" (proc.ip),
+          [nsp] "r" (@intFromPtr(init) + 4096),
+    );
 
     log.err("Alcanzdo final del kernel... terminando", .{});
 }

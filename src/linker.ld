@@ -43,6 +43,8 @@ SECTIONS {
 	.data : ALIGN(4K) {
 		*(.data .data*);
 		*(.sdata .sdata*);
+		. = ALIGN(4096);
+		*(.usermode .usermode.*);
 	}
 	. = ALIGN(4096);
 	PROVIDE(HEAP_START = .);

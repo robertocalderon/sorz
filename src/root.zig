@@ -9,6 +9,7 @@ pub const spinlock = @import("./sync/spinlock.zig");
 pub const interrupts = @import("./arch/interrupts.zig");
 pub const qemu = @import("./arch/qemu.zig");
 pub const registers = @import("./arch/registers.zig");
+pub const process = @import("process/root.zig");
 
 pub const KERNEL_GPA = std.heap.GeneralPurposeAllocator(.{
     .backing_allocator_zeroes = false,

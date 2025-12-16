@@ -1,8 +1,11 @@
 const std = @import("std");
 const root = @import("../root.zig");
 
+const Virt = @This();
+
 pub const AddressSpace = struct {
     root_page: *PageTable,
+    asid: u9,
 
     const SATP = packed struct {
         ppn: PhysicalPageNumber,
@@ -11,15 +14,42 @@ pub const AddressSpace = struct {
     };
     pub fn activate(self: *AddressSpace) void {
         const root_addr: PhysicalAddress = @bitCast(@as(u34, @intCast(@intFromPtr(self.root_page))));
+        std.debug.assert(root_addr.offset == 0);
         const satp: SATP = .{
             .ppn = root_addr.ppn,
-            .ASID = 0,
+            .ASID = self.asid,
             .MODE = 1,
         };
         asm volatile ("csrw satp, %[val]"
             :
             : [val] "r" (@as(usize, @bitCast(satp))),
         );
+        asm volatile ("sfence.vma");
+    }
+    pub fn new_empty(alloc: std.mem.Allocator) !AddressSpace {
+        const table = try alloc.create(PageTable);
+        @memset(table, @as(PageTableEntry, @bitCast(@as(usize, 0))));
+        return .{ .root_page = table, .asid = 1 };
+    }
+    pub fn map_all_kernel_identity(self: *AddressSpace) void {
+        for (0..1024) |ppn1| {
+            const entry: *PageTableEntry = &self.root_page[ppn1];
+            const current_addr: u34 = @as(u34, @intCast(ppn1)) * 1024 * 4096;
+            const current_physical_addr: PhysicalAddress = @bitCast(current_addr);
+            entry.* = .{
+                .V = 1,
+                .G = 0,
+                .RSW = 0,
+                .access_flags = .rwx_kernel(),
+                .ppn = current_physical_addr.ppn,
+            };
+        }
+    }
+    pub fn map_page(self: *AddressSpace, alloc: ?std.mem.Allocator, phys: PhysicalAddress, virt: VirtualAddress, flags: AccessFlags) !void {
+        return Virt.map_page(alloc, self.*, phys, virt, flags);
+    }
+    pub fn unmap_page(self: *AddressSpace, alloc: ?std.mem.Allocator, virt: VirtualAddress) !void {
+        return Virt.unmap_page(alloc, self.*, virt);
     }
 };
 pub const AccessFlags = packed struct {
@@ -139,10 +169,12 @@ const PageTableEntry = packed struct {
         return true;
     }
     pub fn get_inner(self: PageTableEntry) *PageTable {
-        return @bitCast(PhysicalAddress{
+        const addr: u34 = @bitCast(PhysicalAddress{
             .offset = 0,
             .ppn = self.ppn,
         });
+        const ptr: usize = @intCast(addr);
+        return @ptrFromInt(ptr);
     }
 };
 const PageTable = [1024]PageTableEntry;
@@ -182,7 +214,7 @@ pub fn init(alloc: std.mem.Allocator) !AddressSpace {
     _ = try identity_map_range_huge_pages(root_table, .rwx_kernel(), 0, 0x1_0000_0000 - 1024 * 4096);
     std.log.debug("0x8000_0000: {any}: 0x{x:0>8}", .{ root_table[512], @as(u32, @bitCast(root_table[512])) });
     std.log.debug("0x8040_0000: {any}: 0x{x:0>8}", .{ root_table[513], @as(u32, @bitCast(root_table[513])) });
-    return .{ .root_page = root_table };
+    return .{ .root_page = root_table, .asid = 0 };
 }
 
 /// Try to map a page, allocating memory if needed
@@ -191,12 +223,13 @@ pub fn map_page(alloc: ?std.mem.Allocator, as: AddressSpace, phys: PhysicalAddre
     std.debug.assert(virt.offset == 0);
 
     const table = as.root_page;
-    const first_level_entry = table[virt.vpn1];
+    var first_level_entry: *PageTableEntry = &table[virt.vpn1];
     var second_level_table: *PageTable = undefined;
 
-    if (first_level_entry.is_branch()) {
+    if (!first_level_entry.is_branch()) {
         std.debug.assert(first_level_entry.ppn.ppn0 == 0);
 
+        const access = first_level_entry.access_flags;
         const r_alloc = alloc orelse return std.mem.Allocator.Error.OutOfMemory;
         var page = try r_alloc.create(PageTable);
 
@@ -207,7 +240,7 @@ pub fn map_page(alloc: ?std.mem.Allocator, as: AddressSpace, phys: PhysicalAddre
             };
             page[i] = PageTableEntry{
                 .V = first_level_entry.V,
-                .access_flags = first_level_entry.access_flags,
+                .access_flags = access,
                 .RSW = first_level_entry.RSW,
                 .G = first_level_entry.G,
                 .A = first_level_entry.A,
@@ -215,22 +248,31 @@ pub fn map_page(alloc: ?std.mem.Allocator, as: AddressSpace, phys: PhysicalAddre
                 .ppn = current_addr,
             };
         }
+        // for (page) |p| {
+        //     std.log.debug("\t=>{}", .{p});
+        // }
 
         second_level_table = page;
-        const page_addr: PhysicalAddress = @bitCast(page);
-        first_level_entry.V = 1;
-        first_level_entry.access_flags = .{
-            .R = 0,
-            .W = 0,
-            .X = 0,
-            .U = first_level_entry.access_flags.U,
+        const page_addr: PhysicalAddress = @bitCast(@as(u34, @intFromPtr(page)));
+        first_level_entry.* = .{
+            .V = 1,
+            .access_flags = .{
+                .R = 0,
+                .U = 0,
+                .W = 0,
+                .X = 0,
+            },
+            .G = 0,
+            .RSW = 0,
+            .A = 0,
+            .D = 0,
+            .ppn = page_addr.ppn,
         };
-        first_level_entry.ppn = page_addr;
     } else {
         second_level_table = first_level_entry.get_inner();
     }
-    const second_level_entry = second_level_table[virt.vpn0];
-    second_level_entry = .{
+    const second_level_entry: *PageTableEntry = &second_level_table[virt.vpn0];
+    second_level_entry.* = .{
         .V = 1,
         .G = 0,
         .access_flags = flags,
@@ -247,7 +289,7 @@ pub fn unmap_page(alloc: ?std.mem.Allocator, as: AddressSpace, virt: VirtualAddr
     const first_level_entry = table[virt.vpn1];
     var second_level_table: *PageTable = undefined;
 
-    if (first_level_entry.is_branch()) {
+    if (!first_level_entry.is_branch()) {
         std.debug.assert(first_level_entry.ppn.ppn0 == 0);
 
         const r_alloc = alloc orelse return std.mem.Allocator.Error.OutOfMemory;

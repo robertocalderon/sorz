@@ -34,6 +34,10 @@ pub const Cause = enum(u32) {
     Breakpoint = 3,
     LoadAddressMisaligned = 4,
     LoadAccessFault = 5,
+    StoreAMOAddressMisaligned = 6,
+    StoreAMOAccessFault = 7,
+    EnvironmentCallFromUMode = 8,
+    EnvironmentCallFromSMode = 9,
     ExternalSupervisorInterrupt = 0x80000009,
     _,
 };
@@ -48,20 +52,14 @@ pub const InterruptFrame = extern struct {
 
 export fn _interrupt_handler(frame: *InterruptFrame) usize {
     switch (frame.scause) {
-        .InstructionAccessFault => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
-        .InstructionAddressMisaligned => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
-        .Breakpoint => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
-        .IllegalInstruction => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
-        .LoadAccessFault => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
-        .LoadAddressMisaligned => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
-        _ => std.log.err("Unknown exception: 0x{x:0>8}", .{@intFromEnum(frame.scause)}),
-
         .ExternalSupervisorInterrupt => {
             if (frame.external_interrupt_handler) |callback| {
                 callback(frame);
             }
             return frame.sepc;
         },
+
+        else => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),
     }
     std.log.err("STVAL: 0x{x:0>8}", .{asm volatile ("csrr %[ret], stval"
         : [ret] "=r" (-> usize),
