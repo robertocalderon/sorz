@@ -32,10 +32,10 @@
     // Once all dependencies are fetched, `zig build` no longer requires
     // internet connectivity.
     .dependencies = .{
-        .freestanding = .{
+        .dtb = .{
             //.url = "git+https://github.com/benburkert/freestanding.zig#aa12f66c4c747b698d6cb935a9acb47306f90378",
             //.hash = "freestanding-0.1.0-r8bSH_uLAQBkZznApYt4ldgvYw7ZHp2_PbtgaDcf96cZ",
-            .path = "../freestanding.zig",
+            .path = "libs/dtb",
         },
     },
     .paths = .{

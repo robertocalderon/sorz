@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) void {
     };
     const target = b.resolveTargetQuery(target_query);
 
-    const freestanding_lib = b.dependency("freestanding", .{
+    const dtb = b.dependency("dtb", .{
         .target = target,
         .optimize = optimize,
     });
@@ -39,7 +39,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "freestanding", .module = freestanding_lib.module("freestanding") },
+                .{ .name = "dtb", .module = dtb.module("dtb") },
             },
         }),
     });

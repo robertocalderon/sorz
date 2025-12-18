@@ -9,6 +9,7 @@ MEM_END = MEM_START + MEM_SIZE;
 SECTIONS {
 	/* Include entry point at start of binary */
 	.text : ALIGN(4K) {
+	    PROVIDE(__kernel_start = .);
 		*(.text.start);
 		*(.text .text.*);
 	}
@@ -45,9 +46,7 @@ SECTIONS {
 		*(.sdata .sdata*);
 		. = ALIGN(4096);
 		*(.usermode .usermode.*);
-	}
 	. = ALIGN(4096);
-	PROVIDE(HEAP_START = .);
-	PROVIDE(HEAP_END = MEM_END);
-	PROVIDE(HEAP_SIZE = HEAP_END - HEAP_START);
+	    PROVIDE(__kernel_end = .);
+	}
 }

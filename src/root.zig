@@ -3,8 +3,9 @@ const std = @import("std");
 pub const dev = @import("dev/root.zig");
 pub const log = @import("log.zig");
 pub const main = @import("main.zig");
-pub const phys_mem = @import("mem/phys_mem.zig");
-pub const virt_mem = @import("mem/virt_mem.zig");
+pub const mem = @import("mem/root.zig");
+pub const phys_mem = mem.phys_mem;
+pub const virt_mem = mem.virt_mem;
 pub const spinlock = @import("./sync/spinlock.zig");
 pub const interrupts = @import("./arch/interrupts.zig");
 pub const qemu = @import("./arch/qemu.zig");
@@ -67,16 +68,16 @@ pub const os = struct {
 };
 
 var PANIC_SERIAL_BUFFER: [128]u8 = undefined;
-pub var PANIC_ALLOC: [16 * 1024 * 1024]u8 = undefined;
+//pub var PANIC_ALLOC: [16 * 1024 * 1024]u8 = undefined;
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
     var serial = dev.serial.Serial.default(&PANIC_SERIAL_BUFFER);
     log.init_logging(&serial.interface);
-    const panic_alloc = std.heap.FixedBufferAllocator.init(&PANIC_ALLOC);
+    //const panic_alloc = std.heap.FixedBufferAllocator.init(&PANIC_ALLOC);
 
     std.log.err("PANIC!!!!", .{});
     std.log.err("MSG: {s}", .{msg});
-    _ = panic_alloc;
+    //_ = panic_alloc;
     _ = ret_addr;
     // var debug_info = @import("freestanding").DebugInfo.init(panic_alloc.allocator(), .{}) catch |err| {
     //     std.log.err("panic: debug info err = {any}\n", .{err});

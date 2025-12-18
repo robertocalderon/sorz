@@ -1,5 +1,5 @@
 const std = @import("std");
-const root = @import("root");
+const root = @import("../root.zig");
 
 extern const HEAP_START: u8;
 extern const HEAP_END: u8;
@@ -27,9 +27,9 @@ const PhysicalMemory = struct {
 /// - All allocations are page-aligned (4KB boundaries)
 var PHYSICAL_MEMORY: root.spinlock.Spinlock(PhysicalMemory) = .init(undefined);
 
-pub fn init_physical_alloc() void {
-    const page_start = std.mem.alignForward(usize, @intFromPtr(&HEAP_START), 4096);
-    const page_end = std.mem.alignBackward(usize, @intFromPtr(&HEAP_END), 4096);
+pub fn init_physical_alloc(main_area: root.mem.MemoryArea) void {
+    const page_start = std.mem.alignForward(usize, @intCast(main_area.start), 4096);
+    const page_end = std.mem.alignBackward(usize, @intCast(main_area.end), 4096);
     const heap_size = page_end - page_start;
     const n_pages = heap_size / 4096;
 
