@@ -45,7 +45,7 @@ SECTIONS {
 		*(.data .data*);
 		*(.sdata .sdata*);
 		. = ALIGN(4096);
-		*(.usermode .usermode.*);
+		*(.usermode.start .usermode .usermode.*);
 	. = ALIGN(4096);
 	    PROVIDE(__kernel_end = .);
 	}
