@@ -4,6 +4,7 @@ const std = @import("std");
 const DTB = @import("dtb");
 
 pub var SERIAL_BUFFER: [128]u8 = undefined;
+pub var SBI_BUFFER: [128]u8 = undefined;
 var EARLY_ALLOC_BUFFER: [4 * 1024]u8 = undefined;
 
 extern var __kernel_start: u8;
@@ -15,9 +16,18 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
 
     const clock = dev.clock.Clock.mtime();
     var serial = dev.serial.Serial.default(&SERIAL_BUFFER);
-
-    root.log.init_logging(&serial.interface);
+    var sbi_writer = root.sbi.SBIDebugWriter.init(&SBI_BUFFER);
     root.log.set_default_clock(clock);
+
+    if (try root.sbi.sbi_probe_extension(.DebugConsoleExtension)) {
+        // SBI debug writer doesn't reference
+        root.log.init_logging(&sbi_writer.interface);
+        std.log.info("Using sbi debug interface for writing logs", .{});
+    } else {
+        // If not, default to try serial interface
+        root.log.init_logging(&serial.interface);
+        std.log.info("Defaulting to serial device for logs", .{});
+    }
 
     std.log.info("Iniciando kernel... (hartid = {})", .{hartid});
 
@@ -136,6 +146,7 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
 
     var serial_dev = serial.get_device();
     try serial_dev.init(kernel_threat_state);
+    root.log.init_logging(&serial.interface);
 
     log.info("Creando primer proceso", .{});
     var proc = try alloc.create(root.process.Process);
