@@ -2,15 +2,15 @@ const std = @import("std");
 const root = @import("root.zig");
 const dev = root.dev;
 
-var DEFAULT_WRITTER: *std.Io.Writer = undefined;
+var DEFAULT_WRITTER: ?*std.Io.Writer = undefined;
 var DEFAULT_CLOCK: ?dev.clock.Clock = null;
 
-pub fn init_logging(logger: *std.Io.Writer) void {
+pub fn init_logging(logger: ?*std.Io.Writer) void {
     DEFAULT_WRITTER = logger;
     // DEFAULT_WRITTER.store(logger, .seq_cst);
     // @atomicStore(*std.Io.Writer, &DEFAULT_WRITTER, logger, .seq_cst);
 }
-pub fn set_default_clock(clock: dev.clock.Clock) void {
+pub fn set_default_clock(clock: ?dev.clock.Clock) void {
     DEFAULT_CLOCK = clock;
 }
 pub fn get_current_writer() *std.Io.Writer {
@@ -33,20 +33,21 @@ pub fn log_fn(
     } ++ "m";
     // const w = DEFAULT_WRITTER.load(.acquire);
     // var w: *std.Io.Writer = @atomicLoad(*std.Io.Writer, &DEFAULT_WRITTER, .acquire);
-    var w: *std.Io.Writer = DEFAULT_WRITTER;
 
     nosuspend {
-        if (DEFAULT_CLOCK) |clock| blk: {
-            var c = clock;
-            const now = c.now() catch break :blk;
-            const nanos = now.raw;
-            const segundos = nanos / 1000000000;
-            const solo_nanos = nanos % 1000000000;
-            const solo_micros = solo_nanos / 1000;
+        if (DEFAULT_WRITTER) |w| {
+            if (DEFAULT_CLOCK) |clock| blk: {
+                var c = clock;
+                const now = c.now() catch break :blk;
+                const nanos = now.raw;
+                const segundos = nanos / 1000000000;
+                const solo_nanos = nanos % 1000000000;
+                const solo_micros = solo_nanos / 1000;
 
-            w.print("[\x1b[36m{d: >6}.{d:0>6}\x1b[0m]  ", .{ segundos, solo_micros }) catch break :blk;
+                w.print("[\x1b[36m{d: >6}.{d:0>6}\x1b[0m]  ", .{ segundos, solo_micros }) catch break :blk;
+            }
+            w.print(color_scape_code ++ level_txt ++ "\x1b[0m" ++ prefix2 ++ format ++ "\n", args) catch return;
+            w.flush() catch return;
         }
-        w.print(color_scape_code ++ level_txt ++ "\x1b[0m" ++ prefix2 ++ format ++ "\n", args) catch return;
-        w.flush() catch return;
     }
 }
