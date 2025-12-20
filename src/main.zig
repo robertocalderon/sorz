@@ -121,7 +121,9 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
         .gpa_alloc = gpa,
         .hartid = hartid,
         .platform_interrupt_controller = undefined,
+        .self_process_list = try alloc.create(root.process.CoreProcessList),
     };
+    kernel_threat_state.self_process_list.* = .init(alloc);
 
     log.debug("Iniciando PLIC...", .{});
     plic = dev.plic.PLIC.new();
@@ -136,7 +138,8 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     try serial_dev.init(kernel_threat_state);
 
     log.info("Creando primer proceso", .{});
-    var proc = try root.process.Process.new(alloc);
+    var proc = try alloc.create(root.process.Process);
+    proc.* = try .new(alloc);
     const init = &@import("init.zig").init;
     proc.ip = @intFromPtr(init);
     proc.address_space.map_all_kernel_identity();
@@ -144,6 +147,13 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     log.debug("init loc = 0x{x:0>8}", .{@intFromPtr(init)});
     proc.address_space.activate();
 
+    {
+        var guard = kernel_threat_state.self_process_list.lock.lock();
+        defer guard.deinit();
+        var list = guard.deref();
+        try list.append(proc);
+    }
+    root.interrupts.set_current_process(proc);
     // drop to u-mode
     sstatus = root.registers.supervisor.SStatus.read();
     sstatus.SPP = .User;

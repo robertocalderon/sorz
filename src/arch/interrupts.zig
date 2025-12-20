@@ -27,6 +27,46 @@ pub fn get_current_interrupt_frame() *InterruptFrame {
     return interrupt_frame;
 }
 
+const RegNumbers = struct {
+    pub const ra = 1;
+    pub const sp = 2;
+    pub const gp = 3;
+    pub const tp = 4;
+    pub const t0 = 5;
+    pub const t1 = 6;
+    pub const t2 = 7;
+    pub const s0 = 8;
+    pub const fp = 8;
+    pub const s1 = 9;
+    pub const a0 = 10;
+    pub const a1 = 11;
+    pub const a2 = 12;
+    pub const a3 = 13;
+    pub const a4 = 14;
+    pub const a5 = 15;
+    pub const a6 = 16;
+    pub const a7 = 17;
+    pub const s2 = 18;
+    pub const s3 = 19;
+    pub const s4 = 20;
+    pub const s5 = 21;
+    pub const s6 = 22;
+    pub const s7 = 23;
+    pub const s8 = 24;
+    pub const s9 = 25;
+    pub const s10 = 26;
+    pub const s11 = 27;
+    pub const t3 = 28;
+    pub const t4 = 29;
+    pub const t5 = 30;
+    pub const t6 = 31;
+};
+
+pub fn set_current_process(proc: *root.process.Process) void {
+    const frame = get_current_interrupt_frame();
+    frame.current_process = proc;
+}
+
 pub const Cause = enum(u32) {
     InstructionAddressMisaligned = 0,
     InstructionAccessFault = 1,
@@ -47,6 +87,7 @@ pub const InterruptFrame = extern struct {
     external_interrupt_handler: ?*const fn (*InterruptFrame) void = null,
     sepc: u32,
     scause: Cause,
+    current_process: *root.process.Process,
     registers: [32]u32,
 };
 
@@ -57,6 +98,41 @@ export fn _interrupt_handler(frame: *InterruptFrame) usize {
                 callback(frame);
             }
             return frame.sepc;
+        },
+        .EnvironmentCallFromUMode => {
+            const system_call = frame.registers[RegNumbers.a7];
+            if (system_call == 93) {
+                std.log.debug("Exit syscall", .{});
+
+                @memcpy(&frame.current_process.registers, &frame.registers);
+                frame.current_process.ip = frame.sepc;
+                frame.current_process.state = .Dead;
+
+                var process_exists: ?*root.process.Process = null;
+                var pidx: usize = 0;
+                {
+                    var guard = frame.thread_state.self_process_list.lock.lock();
+                    defer guard.deinit();
+                    const list = guard.deref();
+                    for (list.items, 0..) |p, i| {
+                        if (p.pid == frame.current_process.pid) {
+                            process_exists = p;
+                            pidx = i;
+                            break;
+                        }
+                    }
+                    if (process_exists) |_| {
+                        _ = list.orderedRemove(pidx);
+                        std.log.debug("process found, removing fromlist", .{});
+                    }
+                }
+                const next_process = root.process.schedule(frame.thread_state.self_process_list);
+                @memcpy(&frame.registers, &next_process.registers);
+                frame.sepc = next_process.ip;
+                frame.current_process = next_process;
+                return frame.sepc;
+            }
+            @panic("unimplemented");
         },
 
         else => std.log.err("Exception: {s}", .{@tagName(frame.scause)}),

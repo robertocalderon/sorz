@@ -23,6 +23,7 @@ pub const KernelThreadState = struct {
     alloc: std.mem.Allocator,
     hartid: usize,
     platform_interrupt_controller: dev.InterruptController,
+    self_process_list: *process.CoreProcessList,
 };
 
 pub export fn _fw_entry(hartid: usize, dtb: *const u8) noreturn {

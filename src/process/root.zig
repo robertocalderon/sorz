@@ -1,5 +1,6 @@
 const std = @import("std");
 const AddressSpace = @import("../root.zig").virt_mem.AddressSpace;
+const spinlock = @import("../sync/spinlock.zig");
 
 pub const ProcessState = enum {
     Running,
@@ -29,3 +30,32 @@ pub const Process = struct {
         };
     }
 };
+
+pub const CoreProcessList = struct {
+    lock: spinlock.Spinlock(std.array_list.Managed(*Process)),
+
+    pub fn init(alloc: std.mem.Allocator) CoreProcessList {
+        return .{
+            .lock = spinlock.Spinlock(std.array_list.Managed(*Process)).init(.init(alloc)),
+        };
+    }
+};
+
+pub fn schedule(self: *CoreProcessList) *Process {
+    blk: {
+        // Try yo schedule from self core list
+        var guard = self.lock.lock();
+        defer guard.deinit();
+        var list = guard.deref();
+        if (list.items.len == 0) {
+            break :blk;
+        }
+        if (list.items.len == 0) {
+            return list.items[0];
+        }
+        const next_process = list.pop().?;
+        list.insert(0, next_process) catch @panic("Error, cannot add element to process list, shouldn't happen");
+        return next_process;
+    }
+    @panic("No more process to schedule!!");
+}
