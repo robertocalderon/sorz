@@ -96,6 +96,14 @@ pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, ret_addr: ?usize) nor
             std.log.err("panic: stacktrace err = {any}\n", .{err});
             qemu.exit(.Failure);
         };
+    } else {
+        var iter = std.debug.StackIterator.init(ret_addr orelse @returnAddress(), @frameAddress());
+        std.log.err("No support for debug self info, printing only addresses of stack trace", .{});
+        var idx: usize = 0;
+        while (iter.next()) |addr| {
+            std.log.err("\t{d: >3}: 0x{x:0>8}", .{ idx, addr });
+            idx += 1;
+        }
     }
 
     serial.interface.flush() catch {};
