@@ -50,7 +50,7 @@ pub fn schedule(self: *CoreProcessList) *Process {
         if (list.items.len == 0) {
             break :blk;
         }
-        const next_process = find_valid_next_process(list.items);
+        const next_process = find_valid_next_process(list);
         return next_process orelse break :blk;
     }
     // TODO: try yo steal processes from another core
