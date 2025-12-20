@@ -1,6 +1,10 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
+    var sorz_options = b.addOptions();
+    const trace_support = b.option(bool, "sorz-trace", "Build kernel with support for printing stack traces with debug info, this will disable the ability to use a debugger with the kernel though") orelse false;
+    sorz_options.addOption(bool, "trace", trace_support);
+
     const host_target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -43,7 +47,12 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.ld" });
+    if (trace_support) {
+        kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.trace.ld" });
+    } else {
+        kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.ld" });
+    }
+    kernel.root_module.addOptions("sorz_options", sorz_options);
 
     b.installArtifact(kernel);
 

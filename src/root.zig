@@ -11,6 +11,7 @@ pub const interrupts = @import("./arch/interrupts.zig");
 pub const qemu = @import("./arch/qemu.zig");
 pub const registers = @import("./arch/registers.zig");
 pub const process = @import("process/root.zig");
+pub const options = @import("sorz_options");
 
 pub const KERNEL_GPA = std.heap.GeneralPurposeAllocator(.{
     .backing_allocator_zeroes = false,
@@ -69,27 +70,33 @@ pub const os = struct {
 };
 
 var PANIC_SERIAL_BUFFER: [128]u8 = undefined;
-//pub var PANIC_ALLOC: [16 * 1024 * 1024]u8 = undefined;
+
+const PANIC = switch (options.trace) {
+    true => struct {
+        pub var PANIC_ALLOC: [16 * 1024 * 1024]u8 = undefined;
+    },
+    false => struct {},
+};
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
     var serial = dev.serial.Serial.default(&PANIC_SERIAL_BUFFER);
     log.init_logging(&serial.interface);
-    //const panic_alloc = std.heap.FixedBufferAllocator.init(&PANIC_ALLOC);
 
     std.log.err("PANIC!!!!", .{});
     std.log.err("MSG: {s}", .{msg});
-    //_ = panic_alloc;
-    _ = ret_addr;
-    // var debug_info = @import("freestanding").DebugInfo.init(panic_alloc.allocator(), .{}) catch |err| {
-    //     std.log.err("panic: debug info err = {any}\n", .{err});
-    //     qemu.exit(.Failure);
-    // };
-    // defer debug_info.deinit();
+    if (options.trace) {
+        const panic_alloc = std.heap.FixedBufferAllocator.init(&PANIC.PANIC_ALLOC);
+        var debug_info = @import("freestanding").DebugInfo.init(panic_alloc.allocator(), .{}) catch |err| {
+            std.log.err("panic: debug info err = {any}\n", .{err});
+            qemu.exit(.Failure);
+        };
+        defer debug_info.deinit();
 
-    // debug_info.printStackTrace(log.get_current_writer(), ret_addr orelse @returnAddress(), @frameAddress()) catch |err| {
-    //     std.log.err("panic: stacktrace err = {any}\n", .{err});
-    //     qemu.exit(.Failure);
-    // };
+        debug_info.printStackTrace(log.get_current_writer(), ret_addr orelse @returnAddress(), @frameAddress()) catch |err| {
+            std.log.err("panic: stacktrace err = {any}\n", .{err});
+            qemu.exit(.Failure);
+        };
+    }
 
     serial.interface.flush() catch {};
     // for now exit qemu
