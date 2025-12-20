@@ -46,16 +46,24 @@ pub fn schedule(self: *CoreProcessList) *Process {
         // Try yo schedule from self core list
         var guard = self.lock.lock();
         defer guard.deinit();
-        var list = guard.deref();
+        const list = guard.deref();
         if (list.items.len == 0) {
             break :blk;
         }
-        if (list.items.len == 0) {
-            return list.items[0];
-        }
-        const next_process = list.pop().?;
-        list.insert(0, next_process) catch @panic("Error, cannot add element to process list, shouldn't happen");
-        return next_process;
+        const next_process = find_valid_next_process(list.items);
+        return next_process orelse break :blk;
     }
+    // TODO: try yo steal processes from another core
     @panic("No more process to schedule!!");
+}
+
+fn find_valid_next_process(list: *std.array_list.Managed(*Process)) ?*Process {
+    for (list.items, 0..) |p, i| {
+        if (p.state == .Running) {
+            const tmp = list.orderedRemove(i);
+            list.appendAssumeCapacity(tmp);
+            return p;
+        }
+    }
+    return null;
 }
