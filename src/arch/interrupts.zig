@@ -122,7 +122,8 @@ export fn _interrupt_handler(frame: *InterruptFrame) usize {
                         }
                     }
                     if (process_exists) |_| {
-                        _ = list.orderedRemove(pidx);
+                        const old_process = list.orderedRemove(pidx);
+                        frame.thread_state.alloc.destroy(old_process);
                         std.log.debug("process found, removing fromlist", .{});
                     }
                 }
