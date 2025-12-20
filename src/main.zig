@@ -34,6 +34,7 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     std.log.info("Leyendo DTB...", .{});
     const dtb = try DTB.DTB.init(@ptrCast(_dtb));
     const root_dev = dtb.get_root_device();
+    root_dev.print_device_tree_recursive(0, .debug);
 
     var reserved_areas = std.array_list.Managed(root.mem.MemoryArea).init(early_alloc);
     const rsvmem = root_dev.find_device("/reserved-memory");

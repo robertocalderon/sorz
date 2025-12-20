@@ -231,6 +231,32 @@ pub const FDTDevice = struct {
         const addr = iter.next() orelse return null;
         return std.fmt.parseInt(usize, addr, 16) catch return null;
     }
+    pub fn print_device_tree_recursive(self: FDTDevice, offset: usize, comptime level: std.log.Level) void {
+        const prints = "\t\t\t\t\t\t\t\t\t\t";
+        if (prints.len < offset) {
+            return;
+        }
+        const log = std.log.scoped(.DTB);
+        switch (level) {
+            .err => log.err("{s}{s}", .{ prints[0..offset], self.name() orelse "???" }),
+            .warn => log.warn("{s}{s}", .{ prints[0..offset], self.name() orelse "???" }),
+            .info => log.info("{s}{s}", .{ prints[0..offset], self.name() orelse "???" }),
+            .debug => log.debug("{s}{s}", .{ prints[0..offset], self.name() orelse "???" }),
+        }
+        var prop_iter = self.get_props();
+        while (prop_iter.next()) |p| {
+            switch (level) {
+                .err => log.err("{s} =>{s}", .{ prints[0..offset], p.name }),
+                .warn => log.warn("{s} =>{s}", .{ prints[0..offset], p.name }),
+                .info => log.info("{s} =>{s}", .{ prints[0..offset], p.name }),
+                .debug => log.debug("{s} =>{s}", .{ prints[0..offset], p.name }),
+            }
+        }
+        var iter = self.get_children();
+        while (iter.next()) |c| {
+            c.print_device_tree_recursive(offset + 1, level);
+        }
+    }
 };
 
 pub const FDTHeader = extern struct {
