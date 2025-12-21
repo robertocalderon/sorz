@@ -125,11 +125,15 @@ pub const PLIC = struct {
         self.registers.priority_threshold[state.hartid][1][1] = @intCast(id);
     }
 
+    fn get_device_type(_: *anyopaque) dev.Device.Error!dev.DeviceType {
+        return dev.DeviceType.InterruptController;
+    }
     pub fn get_device(self: *Self) dev.Device {
         return .{
             .ctx = @ptrCast(self),
             .vtable = &dev.Device.VTable{
                 .init = &init,
+                .get_device_type = &get_device_type,
             },
         };
     }

@@ -6,11 +6,15 @@ pub const Serial = struct {
     base: *volatile u8,
     interface: std.Io.Writer,
 
+    fn get_device_type(_: *anyopaque) dev.Device.Error!dev.DeviceType {
+        return dev.DeviceType.IODevice;
+    }
     pub fn get_device(self: *Serial) dev.Device {
         return .{
             .ctx = @ptrCast(self),
             .vtable = &dev.Device.VTable{
                 .init = &Serial.init,
+                .get_device_type = &get_device_type,
             },
         };
     }
