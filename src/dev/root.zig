@@ -11,11 +11,14 @@ pub const DeviceType = enum {
 };
 
 pub const Device = struct {
-    pub const Error = error{} || std.mem.Allocator.Error || InterruptController.Error;
+    pub const Error = error{
+        BufferTooSmall,
+    } || std.mem.Allocator.Error || InterruptController.Error;
 
     pub const VTable = struct {
         init: *const fn (self: *anyopaque, state: *root.KernelThreadState) Error!void,
         get_device_type: *const fn (self: *anyopaque) Error!DeviceType,
+        get_device_name: *const fn (self: *anyopaque, buffer: []u8) Error![]u8,
     };
     vtable: *const VTable,
     ctx: *anyopaque,
@@ -25,5 +28,8 @@ pub const Device = struct {
     }
     pub fn get_device_type(self: *Device) Error!DeviceType {
         return self.vtable.get_device_type(self.ctx);
+    }
+    pub fn get_device_name(self: *Device, buffer: []u8) Error![]u8 {
+        return self.vtable.get_device_name(self.ctx, buffer);
     }
 };

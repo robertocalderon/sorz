@@ -128,12 +128,23 @@ pub const PLIC = struct {
     fn get_device_type(_: *anyopaque) dev.Device.Error!dev.DeviceType {
         return dev.DeviceType.InterruptController;
     }
+    pub fn get_device_name(_: *anyopaque, buffer: []u8) dev.Device.Error![]u8 {
+        const device_name = "PLIC";
+        if (buffer.len < device_name.len) {
+            @memcpy(buffer, device_name[0..buffer.len]);
+            return dev.Device.Error.BufferTooSmall;
+        } else {
+            @memcpy(buffer, device_name);
+            return buffer[0..device_name.len];
+        }
+    }
     pub fn get_device(self: *Self) dev.Device {
         return .{
             .ctx = @ptrCast(self),
             .vtable = &dev.Device.VTable{
                 .init = &init,
                 .get_device_type = &get_device_type,
+                .get_device_name = &get_device_name,
             },
         };
     }
