@@ -236,21 +236,14 @@ pub const FDTDevice = struct {
         if (prints.len < offset) {
             return;
         }
-        const log = std.log.scoped(.DTB);
-        switch (level) {
-            .err => log.err("{s}{s}", .{ prints[0..offset], self.name() orelse "???" }),
-            .warn => log.warn("{s}{s}", .{ prints[0..offset], self.name() orelse "???" }),
-            .info => log.info("{s}{s}", .{ prints[0..offset], self.name() orelse "???" }),
-            .debug => log.debug("{s}{s}", .{ prints[0..offset], self.name() orelse "???" }),
-        }
+        log_with_level(level, .DTB, "{s}{s}", .{ prints[0..offset], self.name() orelse "???" });
         var prop_iter = self.get_props();
         while (prop_iter.next()) |p| {
-            switch (level) {
-                .err => log.err("{s} =>{s}", .{ prints[0..offset], p.name }),
-                .warn => log.warn("{s} =>{s}", .{ prints[0..offset], p.name }),
-                .info => log.info("{s} =>{s}", .{ prints[0..offset], p.name }),
-                .debug => log.debug("{s} =>{s}", .{ prints[0..offset], p.name }),
+            if (std.mem.eql(u8, p.name, "compatible") or std.mem.eql(u8, p.name, "device_type")) {
+                log_with_level(level, .DTB, "{s} =>{s}: {s}", .{ prints[0..offset], p.name, p.data });
+                continue;
             }
+            log_with_level(level, .DTB, "{s} =>{s}", .{ prints[0..offset], p.name });
         }
         var iter = self.get_children();
         while (iter.next()) |c| {
@@ -258,6 +251,15 @@ pub const FDTDevice = struct {
         }
     }
 };
+fn log_with_level(comptime level: std.log.Level, comptime scope: @Type(.enum_literal), comptime fmt: []const u8, args: anytype) void {
+    const log = std.log.scoped(scope);
+    switch (level) {
+        .err => log.err(fmt, args),
+        .warn => log.warn(fmt, args),
+        .info => log.info(fmt, args),
+        .debug => log.debug(fmt, args),
+    }
+}
 
 pub const FDTHeader = extern struct {
     magic: u32,
