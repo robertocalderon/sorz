@@ -9,7 +9,7 @@ extern var __kernel_start: u8;
 extern var __kernel_end: u8;
 
 pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
-    try early_init(hartid, _dtb);
+    const root_dev = try early_init(hartid, _dtb);
 
     var gpa = root.KERNEL_GPA{};
     const alloc = gpa.allocator();
@@ -32,19 +32,21 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     };
     kernel_threat_state.self_process_list.* = .init(alloc);
 
-    std.log.debug("Iniciando PLIC...", .{});
-    plic = dev.plic.PLIC.new();
-    var plic_dev = plic.get_device();
-    try plic_dev.init(kernel_threat_state);
-    kernel_threat_state.platform_interrupt_controller = plic.get_interrupt_controller();
-    kernel_threat_state.platform_interrupt_controller.init();
+    try root.dev.drivers.DriverRegistry.device_init(&root_dev);
 
-    std.log.debug("Doing real serial initialization after interrupt controller is ready", .{});
-
-    var serial = root.dev.serial.Serial.default(&.{});
-    var serial_dev = serial.get_device();
-    try serial_dev.init(kernel_threat_state);
-    root.log.init_logging(&serial.interface);
+    // std.log.debug("Iniciando PLIC...", .{});
+    // plic = dev.plic.PLIC.new();
+    // var plic_dev = plic.get_device();
+    // try plic_dev.init(kernel_threat_state);
+    // kernel_threat_state.platform_interrupt_controller = plic.get_interrupt_controller();
+    // kernel_threat_state.platform_interrupt_controller.init();
+    //
+    // std.log.debug("Doing real serial initialization after interrupt controller is ready", .{});
+    //
+    // var serial = root.dev.serial.Serial.default(&.{});
+    // var serial_dev = serial.get_device();
+    // try serial_dev.init(kernel_threat_state);
+    // root.log.init_logging(&serial.interface);
 
     std.log.info("Creando primer proceso", .{});
     var proc = try alloc.create(root.process.Process);
@@ -79,7 +81,7 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     std.log.err("Alcanzdo final del kernel... terminando", .{});
 }
 
-fn early_init(hartid: usize, _dtb: *const u8) !void {
+fn early_init(hartid: usize, _dtb: *const u8) !DTB.FDTDevice {
     var fba = std.heap.FixedBufferAllocator.init(&EARLY_ALLOC_BUFFER);
     const alloc = fba.allocator();
     try init_logging(alloc);
@@ -93,6 +95,8 @@ fn early_init(hartid: usize, _dtb: *const u8) !void {
     const physical_memory_area = try find_physical_memory_region(alloc, &root_dev);
     std.log.info("Iniciando reservador de memoria fisica", .{});
     root.phys_mem.init_physical_alloc(physical_memory_area);
+
+    return root_dev;
 }
 
 fn init_logging(alloc: std.mem.Allocator) !void {

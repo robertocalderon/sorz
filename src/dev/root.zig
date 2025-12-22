@@ -2,6 +2,7 @@ pub const serial = @import("serial.zig");
 pub const clock = @import("clock/root.zig");
 pub const plic = @import("plic.zig");
 pub const InterruptController = @import("interrupt_controller.zig");
+pub const drivers = @import("drivers/root.zig");
 const std = @import("std");
 const root = @import("../root.zig");
 
