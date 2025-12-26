@@ -9,11 +9,13 @@ const root = @import("../root.zig");
 pub const DeviceType = enum {
     IODevice,
     InterruptController,
+    PowerDevice,
 };
 
 pub const Device = struct {
     pub const Error = error{
         BufferTooSmall,
+        CapabilityUnavailable,
     } || std.mem.Allocator.Error || InterruptController.Error;
 
     pub const VTable = struct {
@@ -33,4 +35,18 @@ pub const Device = struct {
     pub fn get_device_name(self: *Device, buffer: []u8) Error![]u8 {
         return self.vtable.get_device_name(self.ctx, buffer);
     }
+};
+
+pub const PowerDevice = struct {
+    pub const Error = error{} || Device.Error;
+
+    pub const Capabilities = enum(u32) {
+        PowerOff = 1 << 0,
+        RebootNow = 1 << 1,
+        _,
+    };
+
+    pub const VTable = struct {
+        request_poweroff: *const fn (*anyopaque) Error!void,
+    };
 };

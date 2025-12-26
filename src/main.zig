@@ -32,7 +32,8 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     };
     kernel_threat_state.self_process_list.* = .init(alloc);
 
-    try root.dev.drivers.DriverRegistry.device_init(&root_dev);
+    const device_registry = try alloc.create(root.dev.drivers.DriverRegistry);
+    try device_registry.device_init(&root_dev, alloc);
 
     // std.log.debug("Iniciando PLIC...", .{});
     // plic = dev.plic.PLIC.new();
@@ -90,7 +91,7 @@ fn early_init(hartid: usize, _dtb: *const u8) !DTB.FDTDevice {
     std.log.info("Leyendo DTB...", .{});
     const dtb = try DTB.DTB.init(@ptrCast(_dtb));
     const root_dev = dtb.get_root_device();
-    root_dev.print_device_tree_recursive(0, .debug);
+    // root_dev.print_device_tree_recursive(0, .debug);
 
     const physical_memory_area = try find_physical_memory_region(alloc, &root_dev);
     std.log.info("Iniciando reservador de memoria fisica", .{});
