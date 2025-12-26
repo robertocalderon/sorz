@@ -56,6 +56,7 @@ pub const DriverRegistry = struct {
             .lock = .init({}),
             .all_devices = .init(alloc),
             .power_devices = .init(alloc),
+            .root_devices = .init(alloc),
         };
     }
     pub fn device_init(self: *DriverRegistry, device: *const DTB.FDTDevice, alloc: std.mem.Allocator, current_path: [][]const u8) Error!DeviceReference {

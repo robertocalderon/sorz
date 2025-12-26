@@ -33,6 +33,7 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     kernel_threat_state.self_process_list.* = .init(alloc);
 
     const device_registry = try alloc.create(root.dev.drivers.DriverRegistry);
+    device_registry.* = .init(alloc);
     _ = try device_registry.device_init(&root_dev, alloc, &.{});
     try device_registry.init_nodes(kernel_threat_state);
 
