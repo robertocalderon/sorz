@@ -38,11 +38,19 @@ pub const DriverRegistry = struct {
             return;
         }
         log.debug("Trying to init dev: {s}", .{device.name() orelse "???"});
-        for (AVAILABLE_DEVICES) |cdev| {
-            const ndev = cdev.check_fn(device, self, alloc) catch continue orelse continue;
-            // alloc.destroy(ndev)
-            std.log.info("Inited deivce: {s}", .{cdev.name});
-            _ = ndev;
+        blk: {
+            for (AVAILABLE_DEVICES) |cdev| {
+                const ndev = cdev.check_fn(device, self, alloc) catch continue orelse continue;
+                // alloc.destroy(ndev)
+                std.log.info("Inited deivce: {s}", .{cdev.name});
+                _ = ndev;
+                break :blk;
+            }
+            var compatible: []const u8 = "???";
+            if (device.find_prop("compatible")) |prop| {
+                compatible = prop.name;
+            }
+            log.err("Device {s} (compatible with: {s}) couldn't be inited or it is unknown", .{ device.name() orelse "???", compatible });
         }
     }
     pub fn init_root_device(self: *DriverRegistry, device: *const DTB.FDTDevice, alloc: std.mem.Allocator) Error!bool {
