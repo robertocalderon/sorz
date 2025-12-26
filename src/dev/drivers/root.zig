@@ -32,20 +32,22 @@ pub const DriverRegistry = struct {
         var len: usize = 0;
         for (current_path) |cp| {
             len += cp.len;
+            len += 1;
         }
         if (cdev) |d| {
             len += d.len;
+            len += 1;
         }
         const buffer = try alloc.alloc(u8, len);
         var i: usize = 0;
         for (current_path) |cp| {
             buffer[i] = '/';
-            @memcpy(buffer[i + 1 ..], cp);
+            @memcpy(buffer[i + 1 .. i + 1 + cp.len], cp);
             i += 1 + cp.len;
         }
         if (cdev) |d| {
             buffer[i] = '/';
-            @memcpy(buffer[i + 1 ..], d);
+            @memcpy(buffer[i + 1 .. i + 1 + d.len], d);
         }
         return buffer;
     }

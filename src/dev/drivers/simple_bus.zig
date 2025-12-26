@@ -57,7 +57,7 @@ pub const SimpleBus = struct {
         log.debug("Try yo identify childern", .{});
         const new_path = try alloc.alloc([]const u8, current_path.len + 1);
         defer alloc.free(new_path);
-        @memcpy(new_path, current_path);
+        @memcpy(new_path[0..current_path.len], current_path);
         new_path[current_path.len] = dev_name;
         while (iter.next()) |elem| {
             const ndev = try device_registry.device_init(&elem, alloc, new_path);
