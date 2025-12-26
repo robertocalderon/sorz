@@ -69,4 +69,5 @@ pub const DriverRegistry = struct {
 
 pub const AVAILABLE_DEVICES: []const DeviceDefinition = &.{
     .{ .name = SimpleBus.dev_name, .check_fn = &SimpleBus.try_create_from_dtb },
+    .{ .name = "NS16550a", .check_fn = &@import("ns16550a.zig").NS16550a.try_create_from_dtb },
 };
