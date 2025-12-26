@@ -83,5 +83,6 @@ pub const SimpleBus = struct {
     fn init(_self: *anyopaque, state: *root.KernelThreadState) dev.Device.Error!void {
         _ = _self;
         _ = state;
+        log.debug("Simple-bus init", .{});
     }
 };
