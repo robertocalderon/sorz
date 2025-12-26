@@ -37,6 +37,10 @@
             //.hash = "freestanding-0.1.0-r8bSH_uLAQBkZznApYt4ldgvYw7ZHp2_PbtgaDcf96cZ",
             .path = "libs/dtb",
         },
+        .freestanding = .{
+            .url = "git+https://github.com/robertocalderon/freestanding.zig#d9f99b4b9e7d27eb2625911d5b666dc13c9d7fd3",
+            .hash = "freestanding-0.1.0-r8bSHz2MAQDpRI8xw3MZBDP5BY72l49w6leQdshanOAj",
+        },
     },
     .paths = .{
         "build.zig",

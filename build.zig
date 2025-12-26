@@ -49,6 +49,8 @@ pub fn build(b: *std.Build) void {
     });
     if (trace_support) {
         kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.trace.ld" });
+        const freestanding = b.dependency("freestanding", .{});
+        kernel.root_module.addImport("freestanding", freestanding.module("freestanding"));
     } else {
         kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.ld" });
     }

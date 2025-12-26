@@ -85,15 +85,15 @@ pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, ret_addr: ?usize) nor
 
     std.log.err("PANIC!!!!", .{});
     std.log.err("MSG: {s}", .{msg});
-    if (options.trace) {
-        const panic_alloc = std.heap.FixedBufferAllocator.init(&PANIC.PANIC_ALLOC);
+    if (options.trace) blk: {
+        var panic_alloc = std.heap.FixedBufferAllocator.init(&PANIC.PANIC_ALLOC);
         var debug_info = @import("freestanding").DebugInfo.init(panic_alloc.allocator(), .{}) catch |err| {
             std.log.err("panic: debug info err = {any}\n", .{err});
             qemu.exit(.Failure);
         };
         defer debug_info.deinit();
 
-        debug_info.printStackTrace(log.get_current_writer(), ret_addr orelse @returnAddress(), @frameAddress()) catch |err| {
+        debug_info.printStackTrace(log.get_current_writer() orelse break :blk, ret_addr orelse @returnAddress(), @frameAddress()) catch |err| {
             std.log.err("panic: stacktrace err = {any}\n", .{err});
             qemu.exit(.Failure);
         };
