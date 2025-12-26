@@ -48,7 +48,7 @@ pub const DriverRegistry = struct {
             }
             var compatible: []const u8 = "???";
             if (device.find_prop("compatible")) |prop| {
-                compatible = prop.name;
+                compatible = prop.data;
             }
             log.err("Device {s} (compatible with: {s}) couldn't be inited or it is unknown", .{ device.name() orelse "???", compatible });
         }
