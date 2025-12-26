@@ -9,9 +9,9 @@ pub const SimpleBus = struct {
     pub const dev_name: []const u8 = "simple-bus";
 
     self_device: DTB.FDTDevice,
-    inner_devices: []const DTB.FDTDevice,
+    inner_devices: std.array_list.Managed(dev.drivers.DeviceReference),
 
-    pub fn try_create_from_dtb(current_device: *const DTB.FDTDevice, device_registry: *dev.drivers.DriverRegistry, alloc: std.mem.Allocator) std.mem.Allocator.Error!?dev.Device {
+    pub fn try_create_from_dtb(current_device: *const DTB.FDTDevice, device_registry: *dev.drivers.DriverRegistry, alloc: std.mem.Allocator, current_path: [][]const u8) std.mem.Allocator.Error!?dev.Device {
         const comp_with = current_device.find_prop("compatible") orelse return null;
         var comp_with_iter = std.mem.splitAny(u8, comp_with.data, ",");
 
@@ -36,15 +36,9 @@ pub const SimpleBus = struct {
         }
 
         log.debug("Found {d} childs devices", .{childs});
-        var arr = try alloc.alloc(DTB.FDTDevice, childs);
-        errdefer alloc.free(arr);
-
-        iter = current_device.get_children();
-        childs = 0;
-        while (iter.next()) |elem| {
-            arr[childs] = elem;
-            childs += 1;
-        }
+        // var arr = try alloc.alloc(DTB.FDTDevice, childs);
+        var arr = try std.array_list.Managed(dev.drivers.DeviceReference).initCapacity(alloc, childs);
+        errdefer arr.deinit();
 
         const self_instance: *SimpleBus = try alloc.create(SimpleBus);
         self_instance.* = .{
@@ -61,8 +55,13 @@ pub const SimpleBus = struct {
         };
         iter = current_device.get_children();
         log.debug("Try yo identify childern", .{});
+        const new_path = try alloc.alloc([]const u8, current_path.len + 1);
+        defer alloc.free(new_path);
+        @memcpy(new_path, current_path);
+        new_path[current_path.len] = dev_name;
         while (iter.next()) |elem| {
-            try device_registry.device_init(&elem, alloc);
+            const ndev = try device_registry.device_init(&elem, alloc, new_path);
+            arr.appendAssumeCapacity(ndev);
         }
         return dev_interface;
     }

@@ -10,8 +10,9 @@ pub const NS16550a = struct {
 
     self_device: DTB.FDTDevice,
 
-    pub fn try_create_from_dtb(current_device: *const DTB.FDTDevice, device_registry: *dev.drivers.DriverRegistry, alloc: std.mem.Allocator) std.mem.Allocator.Error!?dev.Device {
+    pub fn try_create_from_dtb(current_device: *const DTB.FDTDevice, device_registry: *dev.drivers.DriverRegistry, alloc: std.mem.Allocator, current_path: [][]const u8) std.mem.Allocator.Error!?dev.Device {
         _ = device_registry;
+        _ = current_path;
 
         const comp_with = current_device.find_prop("compatible") orelse return null;
         var comp_with_iter = std.mem.splitAny(u8, comp_with.data, ",");

@@ -33,7 +33,7 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     kernel_threat_state.self_process_list.* = .init(alloc);
 
     const device_registry = try alloc.create(root.dev.drivers.DriverRegistry);
-    try device_registry.device_init(&root_dev, alloc);
+    _ = try device_registry.device_init(&root_dev, alloc, &.{});
 
     // std.log.debug("Iniciando PLIC...", .{});
     // plic = dev.plic.PLIC.new();

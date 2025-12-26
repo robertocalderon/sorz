@@ -7,7 +7,7 @@ const dev = @import("../root.zig");
 
 const SimpleBus = @import("simple_bus.zig").SimpleBus;
 
-pub const Error = error{};
+pub const Error = error{} || std.mem.Allocator.Error;
 
 pub const DeviceReference = struct {
     handle: dev.Device,
@@ -15,7 +15,7 @@ pub const DeviceReference = struct {
 };
 pub const DeviceDefinition = struct {
     name: []const u8,
-    check_fn: *const fn (current_device: *const DTB.FDTDevice, device_registry: *DriverRegistry, alloc: std.mem.Allocator) std.mem.Allocator.Error!?dev.Device,
+    check_fn: *const fn (current_device: *const DTB.FDTDevice, device_registry: *DriverRegistry, alloc: std.mem.Allocator, current_path: [][]const u8) std.mem.Allocator.Error!?dev.Device,
 };
 
 pub const DriverRegistry = struct {
@@ -25,6 +25,30 @@ pub const DriverRegistry = struct {
     all_devices: std.array_list.Managed(DeviceReference),
     power_devices: std.array_list.Managed(DeviceReference),
 
+    root_devices: std.array_list.Managed(DeviceReference),
+
+    pub fn format_path(alloc: std.mem.Allocator, current_path: [][]const u8, cdev: ?[]const u8) ![]const u8 {
+        var len: usize = 0;
+        for (current_path) |cp| {
+            len += cp.len;
+        }
+        if (cdev) |d| {
+            len += d.len;
+        }
+        const buffer = try alloc.alloc(u8, len);
+        var i: usize = 0;
+        for (current_path) |cp| {
+            buffer[i] = '/';
+            @memcpy(buffer[i + 1 ..], cp);
+            i += 1 + cp.len;
+        }
+        if (cdev) |d| {
+            buffer[i] = '/';
+            @memcpy(buffer[i + 1 ..], d);
+        }
+        return buffer;
+    }
+
     pub fn init(alloc: std.mem.Allocator) DriverRegistry {
         return .{
             .alloc = alloc,
@@ -33,25 +57,28 @@ pub const DriverRegistry = struct {
             .power_devices = .init(alloc),
         };
     }
-    pub fn device_init(self: *DriverRegistry, device: *const DTB.FDTDevice, alloc: std.mem.Allocator) Error!void {
+    pub fn device_init(self: *DriverRegistry, device: *const DTB.FDTDevice, alloc: std.mem.Allocator, current_path: [][]const u8) Error!DeviceReference {
         if (try self.init_root_device(device, alloc)) {
-            return;
+            return undefined;
         }
         log.debug("Trying to init dev: {s}", .{device.name() orelse "???"});
-        blk: {
-            for (AVAILABLE_DEVICES) |cdev| {
-                const ndev = cdev.check_fn(device, self, alloc) catch continue orelse continue;
-                // alloc.destroy(ndev)
-                std.log.info("Deivce added: {s}", .{cdev.name});
-                _ = ndev;
-                break :blk;
-            }
-            var compatible: []const u8 = "???";
-            if (device.find_prop("compatible")) |prop| {
-                compatible = prop.data;
-            }
-            log.err("Device {s} (compatible with: {s}) couldn't be inited or it is unknown", .{ device.name() orelse "???", compatible });
+        for (AVAILABLE_DEVICES) |cdev| {
+            const ndev = cdev.check_fn(device, self, alloc, current_path) catch continue orelse continue;
+            // alloc.destroy(ndev)
+            std.log.info("Deivce added: {s}", .{cdev.name});
+
+            const def: DeviceReference = .{
+                .handle = ndev,
+                .path = try format_path(alloc, current_path, cdev.name),
+            };
+            return def;
         }
+        var compatible: []const u8 = "???";
+        if (device.find_prop("compatible")) |prop| {
+            compatible = prop.data;
+        }
+        log.err("Device {s} (compatible with: {s}) couldn't be inited or it is unknown", .{ device.name() orelse "???", compatible });
+        return undefined;
     }
     pub fn init_root_device(self: *DriverRegistry, device: *const DTB.FDTDevice, alloc: std.mem.Allocator) Error!bool {
         const dname = device.name() orelse return false;
@@ -61,7 +88,8 @@ pub const DriverRegistry = struct {
         log.debug("Found root device, initing children", .{});
         var iter = device.get_children();
         while (iter.next()) |cdev| {
-            try self.device_init(&cdev, alloc);
+            const ndef = try self.device_init(&cdev, alloc, &.{});
+            try self.root_devices.append(ndef);
         }
         return true;
     }
