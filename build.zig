@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) void {
     var sorz_options = b.addOptions();
-    const trace_support = b.option(bool, "sorz-trace", "Build kernel with support for printing stack traces with debug info, this will disable the ability to use a debugger with the kernel though") orelse false;
+    const trace_support = b.option(bool, "sorz-trace", "Build kernel with support for printing stack traces with debug info, this will disable the ability to use a debugger with the kernel though") orelse true;
     sorz_options.addOption(bool, "trace", trace_support);
 
     const host_target = b.standardTargetOptions(.{});
