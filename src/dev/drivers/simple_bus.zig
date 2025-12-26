@@ -68,7 +68,7 @@ pub const SimpleBus = struct {
     }
 
     fn get_device_type(_: *anyopaque) dev.Device.Error!dev.DeviceType {
-        return dev.DeviceType.IODevice;
+        return dev.DeviceType.DeviceGroup;
     }
     pub fn get_device_name(_: *anyopaque, buffer: []u8) dev.Device.Error![]u8 {
         const device_name = dev_name;

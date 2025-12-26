@@ -10,6 +10,7 @@ pub const DeviceType = enum {
     IODevice,
     InterruptController,
     PowerDevice,
+    DeviceGroup,
 };
 
 pub const Device = struct {
