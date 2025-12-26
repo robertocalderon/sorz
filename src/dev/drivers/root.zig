@@ -1,6 +1,7 @@
 const std = @import("std");
 const Spinlock = @import("../../sync/spinlock.zig").Spinlock;
 const DTB = @import("dtb");
+const root = @import("../../root.zig");
 
 const log = std.log.scoped(.DriverRegistry);
 const dev = @import("../root.zig");
@@ -90,6 +91,52 @@ pub const DriverRegistry = struct {
         while (iter.next()) |cdev| {
             const ndef = try self.device_init(&cdev, alloc, &.{});
             try self.root_devices.append(ndef);
+        }
+        return true;
+    }
+    pub fn build_dependency_graph(self: *DriverRegistry) ![]dev.DependencyNode {
+        const nodes = try self.alloc.alloc(dev.DependencyNode, self.all_devices.items.len);
+        for (0..nodes.len) |i| {
+            nodes[i] = dev.DependencyNode{
+                .inited = false,
+                .dependencies = .init(self.alloc),
+                .driver = &self.all_devices.items[i],
+            };
+        }
+        for (0..nodes.len) |i| {
+            try nodes[i].driver.handle.dependency_build(&nodes[i], nodes);
+        }
+        return nodes;
+    }
+    pub fn init_nodes(self: *DriverRegistry, state: *root.KernelThreadState) !void {
+        const nodes = try self.build_dependency_graph();
+        defer self.alloc.free(nodes);
+        // TODO: better build order/less iteration
+        while (!dep_grap_ready(nodes)) {
+            for (nodes) |n| {
+                if (n.inited) {
+                    continue;
+                }
+                if (!dep_graph_node_ready(n)) {
+                    continue;
+                }
+                try n.driver.handle.init(state);
+            }
+        }
+    }
+    fn dep_grap_ready(graph: []const dev.DependencyNode) bool {
+        for (graph) |node| {
+            if (!node.inited) {
+                return false;
+            }
+        }
+        return true;
+    }
+    fn dep_graph_node_ready(node: dev.DependencyNode) bool {
+        for (node.dependencies.items) |dep| {
+            if (!dep.inited) {
+                return false;
+            }
         }
         return true;
     }
