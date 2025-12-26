@@ -42,7 +42,7 @@ pub const DriverRegistry = struct {
             for (AVAILABLE_DEVICES) |cdev| {
                 const ndev = cdev.check_fn(device, self, alloc) catch continue orelse continue;
                 // alloc.destroy(ndev)
-                std.log.info("Inited deivce: {s}", .{cdev.name});
+                std.log.info("Deivce added: {s}", .{cdev.name});
                 _ = ndev;
                 break :blk;
             }
