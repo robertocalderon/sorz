@@ -58,7 +58,6 @@ pub const PLIC = struct {
             .ctx = @ptrCast(self),
             .vtable = &dev.Device.VTable{
                 .init = &init,
-                .get_device_type = &get_device_type,
                 .get_device_name = &get_device_name,
                 .get_interrupt_controller = &get_interrupt_controller_dev_interface,
             },
@@ -155,9 +154,6 @@ pub const PLIC = struct {
         self.registers.priority_threshold[state.hartid][1][1] = @intCast(id);
     }
 
-    fn get_device_type(_: *anyopaque) dev.Device.Error!dev.DeviceType {
-        return dev.DeviceType.InterruptController;
-    }
     pub fn get_device_name(_: *anyopaque, buffer: []u8) dev.Device.Error![]u8 {
         const device_name = "PLIC";
         if (buffer.len < device_name.len) {

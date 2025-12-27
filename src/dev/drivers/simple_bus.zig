@@ -49,7 +49,6 @@ pub const SimpleBus = struct {
             .ctx = @ptrCast(self_instance),
             .vtable = &dev.Device.VTable{
                 .get_device_name = &get_device_name,
-                .get_device_type = &get_device_type,
                 .init = &init,
             },
         };
@@ -66,9 +65,6 @@ pub const SimpleBus = struct {
         return dev_interface;
     }
 
-    fn get_device_type(_: *anyopaque) dev.Device.Error!dev.DeviceType {
-        return dev.DeviceType.DeviceGroup;
-    }
     pub fn get_device_name(_: *anyopaque, buffer: []u8) dev.Device.Error![]u8 {
         const device_name = dev_name;
         if (buffer.len < device_name.len) {

@@ -6,13 +6,6 @@ pub const drivers = @import("drivers/root.zig");
 const std = @import("std");
 const root = @import("../root.zig");
 
-pub const DeviceType = enum {
-    IODevice,
-    InterruptController,
-    PowerDevice,
-    DeviceGroup,
-};
-
 pub const Device = struct {
     pub const Error = error{
         BufferTooSmall,
@@ -21,7 +14,6 @@ pub const Device = struct {
 
     pub const VTable = struct {
         init: *const fn (self: *anyopaque, state: *root.KernelThreadState) Error!void,
-        get_device_type: *const fn (self: *anyopaque) Error!DeviceType,
         get_device_name: *const fn (self: *anyopaque, buffer: []u8) Error![]u8,
         /// dependency_build
         ///
@@ -39,9 +31,6 @@ pub const Device = struct {
 
     pub fn init(self: *Device, state: *root.KernelThreadState) Error!void {
         return self.vtable.init(self.ctx, state);
-    }
-    pub fn get_device_type(self: *Device) Error!DeviceType {
-        return self.vtable.get_device_type(self.ctx);
     }
     pub fn get_device_name(self: *Device, buffer: []u8) Error![]u8 {
         return self.vtable.get_device_name(self.ctx, buffer);
