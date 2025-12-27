@@ -112,10 +112,10 @@ pub const NS16550a = struct {
 
         var ictrl = (try self.interrupt_controller.get_interrupt_controller()).?;
         try ictrl.enable_threshold(0, state);
-        try ictrl.enable_interrupt_with_id(10, state);
-        try ictrl.enable_priority_with_id(10, 1, state);
+        try ictrl.enable_interrupt_with_id(self.interrupt_number, state);
+        try ictrl.enable_priority_with_id(self.interrupt_number, 1, state);
 
-        try ictrl.register_interrupt_callback(10, &handle_exception, @ptrCast(self), state);
+        try ictrl.register_interrupt_callback(self.interrupt_number, &handle_exception, @ptrCast(self), state);
     }
     pub fn handle_exception(ctx: *anyopaque, state: *root.KernelThreadState) void {
         const self: *NS16550a = @ptrCast(@alignCast(ctx));
