@@ -64,7 +64,7 @@ pub const PowerDevice = struct {
 pub const DependencyNode = struct {
     driver: *drivers.DeviceReference,
     inited: bool,
-    dependencies: std.array_list.Managed(*DependencyNode),
+    dependencies: std.array_list.Managed(*const DependencyNode),
 };
 
 fn default_dependency_build(_: *anyopaque, _: *DependencyNode, _: []const DependencyNode) Device.Error!void {}

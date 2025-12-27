@@ -12,6 +12,7 @@ pub const Error = error{} || std.mem.Allocator.Error;
 
 pub const DeviceReference = struct {
     handle: dev.Device,
+    dtb_entry: DTB.FDTDevice,
     path: []const u8,
 };
 pub const DeviceDefinition = struct {
@@ -71,6 +72,7 @@ pub const DriverRegistry = struct {
 
             const def: DeviceReference = .{
                 .handle = ndev,
+                .dtb_entry = device.*,
                 .path = try format_path(alloc, current_path, cdev.name),
             };
             try self.all_devices.append(def);
@@ -98,13 +100,14 @@ pub const DriverRegistry = struct {
     }
     pub fn build_dependency_graph(self: *DriverRegistry) ![]dev.DependencyNode {
         const nodes = try self.alloc.alloc(dev.DependencyNode, self.all_devices.items.len);
-        for (0..nodes.len) |i| {
+        for (0..self.all_devices.items.len) |i| {
             nodes[i] = dev.DependencyNode{
                 .inited = false,
                 .dependencies = .init(self.alloc),
                 .driver = &self.all_devices.items[i],
             };
         }
+        log.debug("nodes entry: {d}", .{nodes.len});
         for (0..nodes.len) |i| {
             try nodes[i].driver.handle.dependency_build(&nodes[i], nodes);
         }

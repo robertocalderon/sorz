@@ -65,6 +65,7 @@ pub const NS16550a = struct {
             .vtable = &dev.Device.VTable{
                 .get_device_name = &get_device_name,
                 .get_device_type = &get_device_type,
+                .dependency_build = &dependency_build,
                 .init = &init,
             },
         };
@@ -88,5 +89,17 @@ pub const NS16550a = struct {
         _ = _self;
         _ = state;
         log.debug("ns16550a init", .{});
+    }
+    fn dependency_build(_self: *anyopaque, self_node: *dev.DependencyNode, all_devices: []const dev.DependencyNode) dev.Device.Error!void {
+        const self: *NS16550a = @ptrCast(@alignCast(_self));
+
+        for (all_devices, 0..) |cdev, i| {
+            const phandle_prop = cdev.driver.dtb_entry.find_prop("phandle") orelse continue;
+            const phandle = phandle_prop.get_u32(0) orelse continue;
+            if (phandle != self.interrupt_controller) {
+                continue;
+            }
+            try self_node.dependencies.append(&all_devices[i]);
+        }
     }
 };

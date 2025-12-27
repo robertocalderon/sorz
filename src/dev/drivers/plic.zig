@@ -77,6 +77,7 @@ pub const PLIC = struct {
     }
 
     fn init(_self: *anyopaque, state: *root.KernelThreadState) dev.Device.Error!void {
+        log.debug("plic init", .{});
         const self: *Self = @ptrCast(@alignCast(_self));
         self.callbacks = try state.alloc.alloc(?Callback, 32);
         for (0..self.callbacks.len) |i| {
