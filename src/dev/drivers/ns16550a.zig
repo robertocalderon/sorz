@@ -9,6 +9,9 @@ pub const NS16550a = struct {
     pub const dev_name: []const u8 = "ns16550a";
 
     self_device: DTB.FDTDevice,
+    interrupt_controller: u32,
+    interrupt_number: u32,
+    mmio: []u8,
 
     pub fn try_create_from_dtb(current_device: *const DTB.FDTDevice, device_registry: *dev.drivers.DriverRegistry, alloc: std.mem.Allocator, current_path: [][]const u8) std.mem.Allocator.Error!?dev.Device {
         _ = device_registry;
@@ -29,11 +32,33 @@ pub const NS16550a = struct {
             }
             return null;
         }
-        log.debug("Serial port found, initing", .{});
+        log.debug("Serial port found, checking compatibility...", .{});
+        if (current_device.find_prop("interrupt-parent") == null) {
+            log.err("Serial port doens't have required properties, aborting", .{});
+            return null;
+        }
+        if (current_device.find_prop("interrupts") == null) {
+            log.err("Serial port doens't have required properties, aborting", .{});
+            return null;
+        }
+        if (current_device.find_prop("reg") == null) {
+            log.err("Serial port doens't have required properties, aborting", .{});
+            return null;
+        }
+
+        const mmio_start = current_device.find_prop("reg").?.get_u64(0).?;
+        const mmio_size = current_device.find_prop("reg").?.get_u64(8).?;
+        var mmio: []u8 = undefined;
+        log.debug("Serial MMIO: 0x{x:0>8} -> 0x{x:0>8}", .{ mmio_start, mmio_start + mmio_size });
+        mmio.ptr = @ptrFromInt(@as(usize, @intCast(mmio_start)));
+        mmio.len = @intCast(mmio_size);
 
         const self_instance: *NS16550a = try alloc.create(NS16550a);
         self_instance.* = .{
             .self_device = current_device.*,
+            .interrupt_controller = current_device.find_prop("interrupt-parent").?.get_small_integer().?,
+            .interrupt_number = current_device.find_prop("interrupts").?.get_small_integer().?,
+            .mmio = mmio,
         };
         const dev_interface = dev.Device{
             .ctx = @ptrCast(self_instance),

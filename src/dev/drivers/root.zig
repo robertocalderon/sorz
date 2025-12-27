@@ -65,16 +65,15 @@ pub const DriverRegistry = struct {
         if (try self.init_root_device(device, alloc)) {
             return undefined;
         }
-        log.debug("Trying to init dev: {s}", .{device.name() orelse "???"});
         for (AVAILABLE_DEVICES) |cdev| {
             const ndev = cdev.check_fn(device, self, alloc, current_path) catch continue orelse continue;
             // alloc.destroy(ndev)
-            std.log.info("Deivce added: {s}", .{cdev.name});
 
             const def: DeviceReference = .{
                 .handle = ndev,
                 .path = try format_path(alloc, current_path, cdev.name),
             };
+            try self.all_devices.append(def);
             return def;
         }
         var compatible: []const u8 = "???";
@@ -116,14 +115,16 @@ pub const DriverRegistry = struct {
         defer self.alloc.free(nodes);
         // TODO: better build order/less iteration
         while (!dep_grap_ready(nodes)) {
-            for (nodes) |n| {
+            for (0..nodes.len) |i| {
+                const n = &nodes[i];
                 if (n.inited) {
                     continue;
                 }
-                if (!dep_graph_node_ready(n)) {
+                if (!dep_graph_node_ready(n.*)) {
                     continue;
                 }
                 try n.driver.handle.init(state);
+                n.inited = true;
             }
         }
     }
@@ -148,4 +149,5 @@ pub const DriverRegistry = struct {
 pub const AVAILABLE_DEVICES: []const DeviceDefinition = &.{
     .{ .name = SimpleBus.dev_name, .check_fn = &SimpleBus.try_create_from_dtb },
     .{ .name = "NS16550a", .check_fn = &@import("ns16550a.zig").NS16550a.try_create_from_dtb },
+    .{ .name = "plic", .check_fn = &@import("plic.zig").try_create_from_dtb },
 };

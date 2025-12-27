@@ -401,6 +401,14 @@ pub const Prop = struct {
     data: []const u8,
     name: []const u8,
 
+    pub fn get_small_integer(self: Prop) ?u32 {
+        var ret: u32 = 0;
+        for (0..@min(4, self.data.len)) |i| {
+            ret = ret << 8;
+            ret |= self.data[i];
+        }
+        return ret;
+    }
     pub fn get_u32(self: Prop, idx: usize) ?u32 {
         const end = idx + 4;
         if (end > self.data.len) {
@@ -412,7 +420,7 @@ pub const Prop = struct {
             self.data[idx + 2],
             self.data[idx + 3],
         };
-        const ret: u32 = (@as(u32, @intCast(data[0])) << 24);
+        var ret: u32 = (@as(u32, @intCast(data[0])) << 24);
         ret |= (@as(u32, @intCast(data[1])) << 16);
         ret |= (@as(u32, @intCast(data[2])) << 8);
         ret |= (@as(u32, @intCast(data[3])) << 0);
