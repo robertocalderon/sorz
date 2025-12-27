@@ -60,6 +60,7 @@ pub const PLIC = struct {
                 .init = &init,
                 .get_device_type = &get_device_type,
                 .get_device_name = &get_device_name,
+                .get_interrupt_controller = &get_interrupt_controller_dev_interface,
             },
         };
     }
@@ -83,6 +84,8 @@ pub const PLIC = struct {
         for (0..self.callbacks.len) |i| {
             self.callbacks[i] = null;
         }
+        state.platform_interrupt_controller = self.get_interrupt_controller();
+        state.platform_interrupt_controller.init();
     }
     fn init_interrupt_controller(_self: *anyopaque) void {
         const self: *Self = @ptrCast(@alignCast(_self));
@@ -165,6 +168,10 @@ pub const PLIC = struct {
             return buffer[0..device_name.len];
         }
     }
+    fn get_interrupt_controller_dev_interface(_self: *anyopaque) dev.Device.Error!?dev.InterruptController {
+        const self: *PLIC = @ptrCast(@alignCast(_self));
+        return self.get_interrupt_controller();
+    }
 };
 
 pub fn try_create_from_dtb(current_device: *const DTB.FDTDevice, device_registry: *dev.drivers.DriverRegistry, alloc: std.mem.Allocator, current_path: [][]const u8) std.mem.Allocator.Error!?dev.Device {
@@ -190,13 +197,6 @@ pub fn try_create_from_dtb(current_device: *const DTB.FDTDevice, device_registry
 
     const self_instance: *PLIC = try alloc.create(PLIC);
     self_instance.* = .new();
-    const dev_interface = dev.Device{
-        .ctx = @ptrCast(self_instance),
-        .vtable = &dev.Device.VTable{
-            .get_device_name = &PLIC.get_device_name,
-            .get_device_type = &PLIC.get_device_type,
-            .init = &PLIC.init,
-        },
-    };
+    const dev_interface = self_instance.get_device();
     return dev_interface;
 }

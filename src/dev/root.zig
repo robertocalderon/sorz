@@ -29,6 +29,10 @@ pub const Device = struct {
         /// and should modify the self_node parameter in order to specify which devices should be initialized before this one is
         /// for example, if a device needs interrupts, it should add a dependency to all interrupt controllers
         dependency_build: *const fn (self: *anyopaque, self_node: *DependencyNode, all_nodes: []const DependencyNode) Device.Error!void = &default_dependency_build,
+        /// get_interrupt_controller
+        ///
+        /// If the device is an interrupt controller this will return it's interface, if not it return null
+        get_interrupt_controller: *const fn (_: *anyopaque) Device.Error!?InterruptController = &default_get_interrupt_controller,
     };
     vtable: *const VTable,
     ctx: *anyopaque,
@@ -44,6 +48,9 @@ pub const Device = struct {
     }
     pub fn dependency_build(self: Device, self_node: *DependencyNode, all_nodes: []const DependencyNode) Error!void {
         return self.vtable.dependency_build(self.ctx, self_node, all_nodes);
+    }
+    pub fn get_interrupt_controller(self: Device) Error!?InterruptController {
+        return self.vtable.get_interrupt_controller(self.ctx);
     }
 };
 
@@ -68,3 +75,6 @@ pub const DependencyNode = struct {
 };
 
 fn default_dependency_build(_: *anyopaque, _: *DependencyNode, _: []const DependencyNode) Device.Error!void {}
+fn default_get_interrupt_controller(_: *anyopaque) Device.Error!?InterruptController {
+    return null;
+}

@@ -51,37 +51,41 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     // try serial_dev.init(kernel_threat_state);
     // root.log.init_logging(&serial.interface);
 
-    std.log.info("Creando primer proceso", .{});
-    var proc = try alloc.create(root.process.Process);
-    proc.* = try .new(alloc);
-    const init = &@import("init.zig").init;
-    proc.ip = @intFromPtr(init);
-    proc.address_space.map_all_kernel_identity();
-    try proc.address_space.map_page(alloc, @bitCast(@as(u34, @intCast(@intFromPtr(init)))), @bitCast(@intFromPtr(init)), .rwx_user());
-    std.log.debug("init loc = 0x{x:0>8}", .{@intFromPtr(init)});
-    proc.address_space.activate();
-
-    {
-        var guard = kernel_threat_state.self_process_list.lock.lock();
-        defer guard.deinit();
-        var list = guard.deref();
-        try list.append(proc);
+    while (true) {
+        asm volatile ("wfi");
     }
-    root.interrupts.set_current_process(proc);
-    // drop to u-mode
-    var sstatus = root.registers.supervisor.SStatus.read();
-    sstatus.SPP = .User;
-    sstatus.write();
-    asm volatile (
-        \\  csrw    sepc, %[val]
-        \\  mv      sp, %[nsp]
-        \\  sret
-        :
-        : [val] "r" (proc.ip),
-          [nsp] "r" (@intFromPtr(init) + 4096),
-    );
 
-    std.log.err("Alcanzdo final del kernel... terminando", .{});
+    // std.log.info("Creando primer proceso", .{});
+    // var proc = try alloc.create(root.process.Process);
+    // proc.* = try .new(alloc);
+    // const init = &@import("init.zig").init;
+    // proc.ip = @intFromPtr(init);
+    // proc.address_space.map_all_kernel_identity();
+    // try proc.address_space.map_page(alloc, @bitCast(@as(u34, @intCast(@intFromPtr(init)))), @bitCast(@intFromPtr(init)), .rwx_user());
+    // std.log.debug("init loc = 0x{x:0>8}", .{@intFromPtr(init)});
+    // proc.address_space.activate();
+    //
+    // {
+    //     var guard = kernel_threat_state.self_process_list.lock.lock();
+    //     defer guard.deinit();
+    //     var list = guard.deref();
+    //     try list.append(proc);
+    // }
+    // root.interrupts.set_current_process(proc);
+    // // drop to u-mode
+    // var sstatus = root.registers.supervisor.SStatus.read();
+    // sstatus.SPP = .User;
+    // sstatus.write();
+    // asm volatile (
+    //     \\  csrw    sepc, %[val]
+    //     \\  mv      sp, %[nsp]
+    //     \\  sret
+    //     :
+    //     : [val] "r" (proc.ip),
+    //       [nsp] "r" (@intFromPtr(init) + 4096),
+    // );
+    //
+    // std.log.err("Alcanzdo final del kernel... terminando", .{});
 }
 
 fn early_init(hartid: usize, _dtb: *const u8) !DTB.FDTDevice {

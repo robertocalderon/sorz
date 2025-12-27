@@ -9,9 +9,11 @@ pub const NS16550a = struct {
     pub const dev_name: []const u8 = "ns16550a";
 
     self_device: DTB.FDTDevice,
-    interrupt_controller: u32,
+    interrupt_controller_phandle: u32,
     interrupt_number: u32,
-    mmio: []u8,
+    mmio: []volatile u8,
+    interface: std.Io.Writer,
+    interrupt_controller: dev.Device,
 
     pub fn try_create_from_dtb(current_device: *const DTB.FDTDevice, device_registry: *dev.drivers.DriverRegistry, alloc: std.mem.Allocator, current_path: [][]const u8) std.mem.Allocator.Error!?dev.Device {
         _ = device_registry;
@@ -48,7 +50,7 @@ pub const NS16550a = struct {
 
         const mmio_start = current_device.find_prop("reg").?.get_u64(0).?;
         const mmio_size = current_device.find_prop("reg").?.get_u64(8).?;
-        var mmio: []u8 = undefined;
+        var mmio: []volatile u8 = undefined;
         log.debug("Serial MMIO: 0x{x:0>8} -> 0x{x:0>8}", .{ mmio_start, mmio_start + mmio_size });
         mmio.ptr = @ptrFromInt(@as(usize, @intCast(mmio_start)));
         mmio.len = @intCast(mmio_size);
@@ -56,9 +58,14 @@ pub const NS16550a = struct {
         const self_instance: *NS16550a = try alloc.create(NS16550a);
         self_instance.* = .{
             .self_device = current_device.*,
-            .interrupt_controller = current_device.find_prop("interrupt-parent").?.get_small_integer().?,
+            .interrupt_controller_phandle = current_device.find_prop("interrupt-parent").?.get_small_integer().?,
             .interrupt_number = current_device.find_prop("interrupts").?.get_small_integer().?,
             .mmio = mmio,
+            .interface = std.Io.Writer{ .buffer = &.{}, .end = 0, .vtable = &std.Io.Writer.VTable{
+                .drain = &NS16550a.drain,
+                .flush = &NS16550a.flush,
+            } },
+            .interrupt_controller = undefined,
         };
         const dev_interface = dev.Device{
             .ctx = @ptrCast(self_instance),
@@ -86,9 +93,34 @@ pub const NS16550a = struct {
         }
     }
     fn init(_self: *anyopaque, state: *root.KernelThreadState) dev.Device.Error!void {
-        _ = _self;
-        _ = state;
         log.debug("ns16550a init", .{});
+        const self: *NS16550a = @ptrCast(@alignCast(_self));
+        const ptr: [*]volatile u8 = @ptrCast(self.mmio.ptr);
+        const lcr = (1 << 0) | (1 << 1);
+        ptr[3] = lcr;
+        ptr[2] = 1 << 0;
+        ptr[1] = 1 << 0;
+        const divisor: u16 = 592;
+        const divisor_least: u8 = @intCast(divisor & 0xff);
+        const divisor_most: u8 = @intCast(divisor >> 8);
+        ptr[3] = lcr | 1 << 7;
+        ptr[0] = divisor_least;
+        ptr[1] = divisor_most;
+        ptr[3] = lcr;
+
+        //var ictrl = state.platform_interrupt_controller;
+
+        var ictrl = (try self.interrupt_controller.get_interrupt_controller()).?;
+        try ictrl.enable_threshold(0, state);
+        try ictrl.enable_interrupt_with_id(10, state);
+        try ictrl.enable_priority_with_id(10, 1, state);
+
+        try ictrl.register_interrupt_callback(10, &handle_exception, @ptrCast(self), state);
+    }
+    pub fn handle_exception(ctx: *anyopaque, state: *root.KernelThreadState) void {
+        const self: *NS16550a = @ptrCast(@alignCast(ctx));
+        _ = state;
+        self.put(self.get() orelse return);
     }
     fn dependency_build(_self: *anyopaque, self_node: *dev.DependencyNode, all_devices: []const dev.DependencyNode) dev.Device.Error!void {
         const self: *NS16550a = @ptrCast(@alignCast(_self));
@@ -96,10 +128,53 @@ pub const NS16550a = struct {
         for (all_devices, 0..) |cdev, i| {
             const phandle_prop = cdev.driver.dtb_entry.find_prop("phandle") orelse continue;
             const phandle = phandle_prop.get_u32(0) orelse continue;
-            if (phandle != self.interrupt_controller) {
+            if (phandle != self.interrupt_controller_phandle) {
                 continue;
             }
             try self_node.dependencies.append(&all_devices[i]);
+            self.interrupt_controller = cdev.driver.handle;
         }
+    }
+
+    pub fn put(self: *NS16550a, data: u8) void {
+        self.mmio[0] = data;
+    }
+    pub fn get(self: *NS16550a) ?u8 {
+        const ptr: [*]volatile u8 = @ptrCast(self.mmio.ptr);
+        if (ptr[5] & 1 == 0) {
+            return null;
+        }
+        return ptr[0];
+    }
+
+    fn drain(w: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
+        var written: usize = 0;
+        const self: *NS16550a = @fieldParentPtr("interface", w);
+        for (w.buffered()) |c| {
+            self.mmio[0] = c;
+        }
+        _ = w.consumeAll();
+        if (data.len > 1) {
+            for (data[0 .. data.len - 1]) |buffer| {
+                for (buffer) |c| {
+                    written += 1;
+                    self.mmio[0] = c;
+                }
+            }
+        }
+        for (0..splat) |_| {
+            for (data[data.len - 1]) |c| {
+                written += 1;
+                self.mmio[0] = c;
+            }
+        }
+        return written;
+    }
+    pub fn flush(w: *std.Io.Writer) std.Io.Writer.Error!void {
+        const self: *NS16550a = @fieldParentPtr("interface", w);
+        for (w.buffered()) |c| {
+            self.mmio[0] = c;
+        }
+        _ = w.consumeAll();
     }
 };
