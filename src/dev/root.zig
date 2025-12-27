@@ -2,6 +2,7 @@ pub const serial = @import("serial.zig");
 pub const clock = @import("clock/root.zig");
 pub const plic = @import("plic.zig");
 pub const InterruptController = @import("interrupt_controller.zig");
+pub const IODevice = @import("io_device.zig");
 pub const drivers = @import("drivers/root.zig");
 const std = @import("std");
 const root = @import("../root.zig");
@@ -25,6 +26,10 @@ pub const Device = struct {
         ///
         /// If the device is an interrupt controller this will return it's interface, if not it return null
         get_interrupt_controller: *const fn (_: *anyopaque) Device.Error!?InterruptController = &default_get_interrupt_controller,
+        /// get_io_device
+        ///
+        /// If the device is an io device this will return it's interface, if not it return null
+        get_io_device: *const fn (_: *anyopaque) Device.Error!?IODevice = &default_get_io_device,
     };
     vtable: *const VTable,
     ctx: *anyopaque,
@@ -40,6 +45,9 @@ pub const Device = struct {
     }
     pub fn get_interrupt_controller(self: Device) Error!?InterruptController {
         return self.vtable.get_interrupt_controller(self.ctx);
+    }
+    pub fn get_io_device(self: Device) Error!?IODevice {
+        return self.vtable.get_io_device(self.ctx);
     }
 };
 
@@ -65,5 +73,8 @@ pub const DependencyNode = struct {
 
 fn default_dependency_build(_: *anyopaque, _: *DependencyNode, _: []const DependencyNode) Device.Error!void {}
 fn default_get_interrupt_controller(_: *anyopaque) Device.Error!?InterruptController {
+    return null;
+}
+fn default_get_io_device(_: *anyopaque) Device.Error!?IODevice {
     return null;
 }

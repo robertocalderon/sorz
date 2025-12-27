@@ -78,6 +78,30 @@ pub const NS16550a = struct {
         return dev_interface;
     }
 
+    pub fn get_io_device(_self: *anyopaque) dev.Device.Error!?dev.IODevice {
+        const self: *NS16550a = @ptrCast(@alignCast(_self));
+        return dev.IODevice{
+            .ctx = @ptrCast(self),
+            .vtable = &dev.IODevice.VTable{
+                .write_fn = &write_fn,
+                .read_fn = &read_fn,
+            },
+        };
+    }
+    fn write_fn(_self: *anyopaque, buffer: []const u8) dev.IODevice.Error!usize {
+        const self: *NS16550a = @ptrCast(@alignCast(_self));
+        for (buffer) |c| {
+            self.put(c);
+        }
+        return buffer.len;
+    }
+    fn read_fn(_self: *anyopaque, buffer: []u8) dev.IODevice.Error![]u8 {
+        _ = _self;
+        _ = buffer;
+        unreachable;
+        // return &buffer[0..0];
+    }
+
     pub fn get_device_name(_: *anyopaque, buffer: []u8) dev.Device.Error![]u8 {
         const device_name = dev_name;
         if (buffer.len < device_name.len) {
