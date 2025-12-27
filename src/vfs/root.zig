@@ -5,12 +5,16 @@ pub const RamFS = @import("ramfs.zig");
 const Self = @This();
 
 alloc: std.mem.Allocator,
-next_dev_id: usize,
+next_fs_id: usize,
+
+/// Maps from fs_id to FS structure
+available_fs: std.hash_map.AutoHashMap(usize, *FS),
 
 pub fn new(alloc: std.mem.Allocator) !Self {
     return .{
         .alloc = alloc,
-        .next_dev_id = 0,
+        .next_fs_id = 0,
+        .available_fs = .init(alloc),
     };
 }
 pub fn deinit(self: *Self) void {
@@ -22,4 +26,5 @@ pub const FS = struct {
     pub const VTable = struct {};
     ctx: *anyopaque,
     vtable: *const VTable,
+    fs_id: usize,
 };
