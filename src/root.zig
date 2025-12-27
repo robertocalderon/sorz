@@ -79,12 +79,20 @@ const PANIC = switch (options.trace) {
     false => struct {},
 };
 
+var handling_panic: bool = false;
+
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
     var serial = dev.serial.Serial.default(&PANIC_SERIAL_BUFFER);
     log.init_logging(&serial.interface);
 
     std.log.err("PANIC!!!!", .{});
     std.log.err("MSG: {s}", .{msg});
+    if (handling_panic) {
+        std.log.err("PANIC WHILE HANDLING PANIC!!!!!!", .{});
+        std.log.err("Aborting real handling of panic!!!!", .{});
+        qemu.exit(.Failure);
+    }
+    handling_panic = true;
     if (options.trace) blk: {
         var panic_alloc = std.heap.FixedBufferAllocator.init(&PANIC.PANIC_ALLOC);
         var debug_info = @import("freestanding").DebugInfo.init(panic_alloc.allocator(), .{}) catch |err| {
