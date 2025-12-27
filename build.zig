@@ -56,6 +56,10 @@ pub fn build(b: *std.Build) void {
     }
     kernel.root_module.addOptions("sorz_options", sorz_options);
 
+    const init_proc = b.dependency("init", .{});
+    const init_exe = init_proc.artifact("init");
+    kernel.step.dependOn(&init_exe.step);
+
     b.installArtifact(kernel);
 
     const run_step = b.step("run", "Run the app");

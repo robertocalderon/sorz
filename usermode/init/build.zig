@@ -42,7 +42,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    exe.setLinkerScript(.{ .cwd_relative = "./../linker.ld" });
+    exe.setLinkerScript(.{ .cwd_relative = "usermode/linker.ld" });
 
     b.installArtifact(exe);
 
