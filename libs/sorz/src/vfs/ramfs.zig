@@ -60,11 +60,97 @@ pub const Superblock = extern struct {
 };
 pub const BlockHeader = struct {
     file_size: usize,
-    n_blocks: usize,
+    file_alloc: usize,
     name: []const u8,
 };
 pub const BlockHeaderInDisk = extern struct {
+    /// Real file size in bytes
     file_size: u32,
-    n_blocks: u32,
+    /// Reserved space for file, in blocks
+    file_alloc: u32,
     name: u8,
 };
+
+/// Depends on block size, so have to calculate it at runtime
+pub fn max_name_size(self: *Self) usize {
+    const offset: usize = @offsetOf(BlockHeaderInDisk, "name");
+    const rem_space = self.block_size - offset;
+    std.debug.assert(rem_space > 64);
+    return rem_space;
+}
+pub fn get_name(self: *Self, header: *const BlockHeaderInDisk) []const u8 {
+    const name_buffer_unsized: [*]u8 = @ptrCast(&header.name);
+    const name_buffer = name_buffer_unsized[0..self.max_name_size()];
+    const name_end = std.mem.indexOf(u8, name_buffer, &.{0}) orelse name_buffer.len;
+    return name_buffer[0..name_end];
+}
+
+pub fn read_block_at_id(self: *Self, id: usize) ![]u8 {
+    if (id >= self.device_size) {
+        return BlockDevice.Error.InvalidAddress;
+    }
+    return try self.backing_device.read_block(id, self.device_cache);
+}
+pub fn write_block_at_it(self: *Self, id: usize, buffer: []const u8) !void {
+    if (id >= self.device_size) {
+        return BlockDevice.Error.InvalidAddress;
+    }
+    try self.backing_device.write_block(id, buffer);
+}
+
+pub fn search_file_block_id(self: *Self, path: []const u8) !?usize {
+    var i = self.starting_block;
+    while (i < self.device_size) {
+        const tmp = try self.read_block_at_id(i);
+        const header: *const BlockHeaderInDisk = @ptrCast(@alignCast(tmp.ptr));
+        const file_name = self.get_name(header);
+        if (std.mem.eql(u8, file_name, path)) {
+            return i;
+        }
+        const file_size = header.file_alloc;
+        const file_block_count = 1 + file_size;
+        i += file_block_count;
+    }
+    return null;
+}
+pub fn alloc_file(self: *Self, path: []const u8, current_size: usize, max_size: usize) !?usize {
+    if (path.len > self.max_name_size()) {
+        // TODO: make an FS Error and report that
+        @panic("Filename too big");
+    }
+    const size = @min(current_size, max_size);
+    const real_max_size: usize = std.mem.alignForward(usize, max_size, self.block_size);
+    // find first empty space
+    const start_block: usize = blk: {
+        var i = self.starting_block;
+        while (i < self.device_size) {
+            const tmp = try self.read_block_at_id(i);
+            const header: *const BlockHeaderInDisk = @ptrCast(@alignCast(tmp.ptr));
+            if (header.file_alloc == 0 and header.file_size == 0 and header.name == 0) {
+                break :blk i;
+            }
+            const file_size = header.file_alloc;
+            const file_block_count = 1 + file_size;
+            i += file_block_count;
+        }
+        return null;
+    };
+    if (self.device_size < (start_block + 1 + real_max_size)) {
+        return null;
+    }
+    const tmp = try self.read_block_at_id(start_block);
+    const header: *const BlockHeaderInDisk = @ptrCast(@alignCast(tmp.ptr));
+    header.file_size = size;
+    header.file_alloc = real_max_size / self.block_size;
+    const name_buffer_unsized: [*]u8 = @ptrCast(&header.name);
+    const name_buffer = name_buffer_unsized[0..self.max_name_size()];
+    @memset(name_buffer, 0);
+    @memcpy(name_buffer[0..path.len], path);
+    try self.backing_device.write_block(start_block, tmp);
+
+    @memset(self.device_cache, 0);
+    for (0..(std.mem.alignForward(usize, size, self.block_size) / self.block_size)) |i| {
+        try self.backing_device.write_block(i + 1 + start_block, self.device_cache);
+    }
+    return start_block;
+}
