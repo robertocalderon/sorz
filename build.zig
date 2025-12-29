@@ -36,16 +36,17 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const kernel_mod = b.addModule("sorz", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "dtb", .module = dtb.module("dtb") },
+        },
+    });
     const kernel = b.addExecutable(.{
         .name = "kernel.sorz",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/root.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "dtb", .module = dtb.module("dtb") },
-            },
-        }),
+        .root_module = kernel_mod,
     });
     if (trace_support) {
         kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.trace.ld" });

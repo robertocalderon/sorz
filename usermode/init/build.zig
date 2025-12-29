@@ -26,6 +26,10 @@ pub fn build(b: *std.Build) void {
     };
     const target = b.resolveTargetQuery(target_query);
 
+    const kernel_lib = b.dependency("sorz", .{ .optimize = optimize, .target = target });
+    const kernel_mod = kernel_lib.module("sorz");
+    _ = kernel_mod;
+
     const mod = b.addModule("init", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -39,6 +43,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "init", .module = mod },
+                // .{ .name = "sorz", .module = kernel_mod },
             },
         }),
     });
