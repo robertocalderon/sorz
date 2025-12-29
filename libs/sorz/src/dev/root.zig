@@ -3,6 +3,7 @@ pub const clock = @import("clock/root.zig");
 pub const plic = @import("plic.zig");
 pub const InterruptController = @import("interrupt_controller.zig");
 pub const IODevice = @import("io_device.zig");
+pub const BlockDevice = @import("block_device.zig");
 pub const drivers = @import("drivers/root.zig");
 const std = @import("std");
 const root = @import("../root.zig");
@@ -30,6 +31,10 @@ pub const Device = struct {
         ///
         /// If the device is an io device this will return it's interface, if not it return null
         get_io_device: *const fn (_: *anyopaque) Device.Error!?IODevice = &default_get_io_device,
+        /// get_block_device
+        ///
+        /// If the device is an io device this will return it's interface, if not it return null
+        get_block_device: *const fn (_: *anyopaque) Device.Error!?BlockDevice = &default_get_block_device,
     };
     vtable: *const VTable,
     ctx: *anyopaque,
@@ -76,5 +81,8 @@ fn default_get_interrupt_controller(_: *anyopaque) Device.Error!?InterruptContro
     return null;
 }
 fn default_get_io_device(_: *anyopaque) Device.Error!?IODevice {
+    return null;
+}
+fn default_get_block_device(_: *anyopaque) Device.Error!?BlockDevice {
     return null;
 }
