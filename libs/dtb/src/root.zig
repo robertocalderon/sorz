@@ -243,7 +243,7 @@ pub const FDTDevice = struct {
                 log_with_level(level, .DTB, "{s} =>{s}: {s}", .{ prints[0..offset], p.name, p.data });
                 continue;
             }
-            log_with_level(level, .DTB, "{s} =>{s}: {x}", .{ prints[0..offset], p.name, p.data });
+            log_with_level(level, .DTB, "{s} =>{s}: {x}", .{ prints[0..offset], p.name, p.data[0..@min(p.data.len, 16)] });
         }
         var iter = self.get_children();
         while (iter.next()) |c| {

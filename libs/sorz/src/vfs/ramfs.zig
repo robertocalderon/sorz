@@ -151,8 +151,8 @@ pub fn alloc_file(self: *Self, path: []const u8, current_size: usize, max_size: 
     }
     const tmp = try self.read_block_at_id(start_block);
     const header: *BlockHeaderInDisk = @ptrCast(@alignCast(tmp.ptr));
-    header.file_size = size;
-    header.file_alloc = real_max_size / self.block_size;
+    header.file_size = @intCast(size);
+    header.file_alloc = @as(u32, @intCast(real_max_size / self.block_size));
     const name_buffer_unsized: [*]u8 = @ptrCast(&header.name);
     const name_buffer = name_buffer_unsized[0..self.max_name_size()];
     @memset(name_buffer, 0);

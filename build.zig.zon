@@ -49,6 +49,9 @@
         .sorz = .{
             .path = "libs/sorz",
         },
+        .sfs = .{
+            .path = "libs/sfs",
+        },
     },
     .paths = .{
         "build.zig",

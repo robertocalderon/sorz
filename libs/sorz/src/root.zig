@@ -13,6 +13,7 @@ pub const process = @import("process/root.zig");
 pub const options = @import("sorz_options");
 pub const sbi = @import("arch/opensbi.zig");
 pub const vfs = @import("vfs/root.zig");
+pub const dtb = @import("dtb");
 
 pub const KERNEL_GPA = std.heap.GeneralPurposeAllocator(.{
     .backing_allocator_zeroes = false,

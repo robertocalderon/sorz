@@ -19,6 +19,9 @@ pub fn new(alloc: std.mem.Allocator, block_size: usize, max_blocks: usize) Error
         .n_blocks = max_blocks,
     };
 }
+pub fn deinit(self: Self, alloc: std.mem.Allocator) void {
+    alloc.free(self.raw_data);
+}
 
 pub fn get_device(self: *Self) dev.Device {
     return .{

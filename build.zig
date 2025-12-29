@@ -33,10 +33,13 @@ pub fn build(b: *std.Build) void {
 
     const sorz = b.dependency("sorz", .{
         .optimize = optimize,
-        .target = target,
         .sorz_trace = trace_support,
     });
-    const dtb = b.dependency("dtb", .{
+    // const dtb = b.dependency("dtb", .{
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
+    const sfs = b.dependency("sfs", .{
         .target = target,
         .optimize = optimize,
     });
@@ -49,8 +52,8 @@ pub fn build(b: *std.Build) void {
                 .target = target,
                 .optimize = optimize,
                 .imports = &.{
-                    .{ .name = "dtb", .module = dtb.module("dtb") },
                     .{ .name = "sorz", .module = sorz.module("sorz") },
+                    .{ .name = "sfs", .module = sfs.module("sfs") },
                 },
             },
         ),
@@ -63,10 +66,8 @@ pub fn build(b: *std.Build) void {
         kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.ld" });
     }
 
-    const init_proc = b.dependency("init", .{});
-    const init_exe = init_proc.artifact("init");
-    kernel.step.dependOn(&init_exe.step);
-
+    const initrd = try gen_initrd(b, host_target, optimize, sorz);
+    kernel.step.dependOn(initrd.run);
     b.installArtifact(kernel);
 
     const run_step = b.step("run", "Run the app");
@@ -87,6 +88,9 @@ pub fn build(b: *std.Build) void {
     });
     run_cmd.addFileInput(kernel.getEmittedBin());
     run_cmd.addFileArg(kernel.getEmittedBin());
+    run_cmd.addArg("-initrd");
+    run_cmd.addFileArg(initrd.output);
+    run_cmd.addFileInput(initrd.output);
     run_step.dependOn(&run_cmd.step);
 
     run_cmd.step.dependOn(b.getInstallStep());
@@ -111,6 +115,9 @@ pub fn build(b: *std.Build) void {
     });
     debug_cmd.addFileInput(kernel.getEmittedBin());
     debug_cmd.addFileArg(kernel.getEmittedBin());
+    debug_cmd.addArg("-initrd");
+    debug_cmd.addFileArg(initrd.output);
+    debug_cmd.addFileInput(initrd.output);
     debug_step.dependOn(&debug_cmd.step);
 
     debug_cmd.step.dependOn(b.getInstallStep());
@@ -182,4 +189,43 @@ pub fn build(b: *std.Build) void {
     // const test_step = b.step("test", "Run tests");
     // test_step.dependOn(&run_mod_tests.step);
     // test_step.dependOn(&run_exe_tests.step);
+}
+
+pub const InitrdData = struct {
+    output: std.Build.LazyPath,
+    run: *std.Build.Step,
+};
+
+pub fn gen_initrd(
+    b: *std.Build,
+    host_target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    sorz: *std.Build.Dependency,
+) !InitrdData {
+    const initrd_sfs_gen = b.addExecutable(.{
+        .name = "initrd_sfs_gen",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("utils/initrd_sfs_gen.zig"),
+            .target = host_target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "sorz", .module = sorz.module("sorz") },
+            },
+        }),
+    });
+    const init_proc = b.dependency("init", .{});
+    const init_exe = init_proc.artifact("init");
+
+    const initrd_sfs_gen_run = b.addRunArtifact(initrd_sfs_gen);
+    initrd_sfs_gen_run.step.dependOn(&init_exe.step);
+    const initrd = initrd_sfs_gen_run.addOutputFileArg("initrd.rmdsk");
+    initrd_sfs_gen_run.addFileInput(init_exe.getEmittedBin());
+    initrd_sfs_gen_run.addFileArg(init_exe.getEmittedBin());
+    const initrd_installed = b.addInstallFile(initrd, "initrd.rmdsk");
+    initrd_installed.step.dependOn(&initrd_sfs_gen_run.step);
+    b.getInstallStep().dependOn(&initrd_installed.step);
+    return .{
+        .output = initrd,
+        .run = &initrd_sfs_gen_run.step,
+    };
 }

@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
+    _ = target;
     const optimize = b.standardOptimizeOption(.{});
 
     var sorz_options = b.addOptions();
@@ -9,13 +10,13 @@ pub fn build(b: *std.Build) void {
     sorz_options.addOption(bool, "trace", trace_support);
 
     const dtb = b.dependency("dtb", .{
-        .target = target,
+        // .target = target,
         .optimize = optimize,
     });
 
     const mod = b.addModule("sorz", .{
         .root_source_file = b.path("src/root.zig"),
-        .target = target,
+        // .target = target,
         .optimize = optimize,
         .imports = &.{
             .{ .name = "dtb", .module = dtb.module("dtb") },

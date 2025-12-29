@@ -1,7 +1,7 @@
 const sorz = @import("sorz");
 const dev = sorz.dev;
 const std = @import("std");
-const DTB = @import("dtb");
+const DTB = @import("sorz").dtb;
 
 var EARLY_ALLOC_BUFFER: [4 * 1024]u8 = undefined;
 
@@ -122,6 +122,8 @@ fn early_init(hartid: usize, _dtb: *const u8) !DTB.FDTDevice {
     const physical_memory_area = try find_physical_memory_region(alloc, &root_dev);
     std.log.info("Iniciando reservador de memoria fisica", .{});
     sorz.phys_mem.init_physical_alloc(physical_memory_area);
+
+    // root_dev.print_device_tree_recursive(0, .err);
 
     return root_dev;
 }
