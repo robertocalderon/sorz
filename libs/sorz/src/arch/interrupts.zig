@@ -1,5 +1,5 @@
 const std = @import("std");
-const root = @import("root");
+const root = @import("../root.zig");
 
 pub fn init(alloc: std.mem.Allocator, state: *root.KernelThreadState) !void {
     const interrupt_data = try alloc.create([4096]u8);

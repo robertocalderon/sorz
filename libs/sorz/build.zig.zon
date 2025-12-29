@@ -22,7 +22,7 @@
     // original project's identity. Thus it is recommended to leave the comment
     // on the following line intact, so that it shows up in code reviews that
     // modify the field.
-    .fingerprint = 0xb69cdf2502629241, // Changing this has security and trust implications.
+    .fingerprint = 0xb69cdf252651d1ff, // Changing this has security and trust implications.
     // Tracks the earliest Zig version that the package considers to be a
     // supported use case.
     .minimum_zig_version = "0.15.2",
@@ -35,21 +35,17 @@
         .dtb = .{
             //.url = "git+https://github.com/benburkert/freestanding.zig#aa12f66c4c747b698d6cb935a9acb47306f90378",
             //.hash = "freestanding-0.1.0-r8bSH_uLAQBkZznApYt4ldgvYw7ZHp2_PbtgaDcf96cZ",
-            .path = "libs/dtb",
-        },
-        .freestanding = .{
-            .url = "git+https://github.com/robertocalderon/freestanding.zig#d9f99b4b9e7d27eb2625911d5b666dc13c9d7fd3",
-            .hash = "freestanding-0.1.0-r8bSHz2MAQDpRI8xw3MZBDP5BY72l49w6leQdshanOAj",
-        },
-        .init = .{
-            .path = "usermode/init",
-            // .url = "usermode/init",
-            // .hash = "init-0.0.0-XVDoBgcfAAAyCtj87f7ifgWbRJbO8YOODMERIuHsC67h",
-        },
-        .sorz = .{
-            .path = "libs/sorz",
+            .path = "../dtb",
         },
     },
+    // Specifies the set of files and directories that are included in this package.
+    // Only files and directories listed here are included in the `hash` that
+    // is computed for this package. Only files listed here will remain on disk
+    // when using the zig package manager. As a rule of thumb, one should list
+    // files required for compilation plus any license(s).
+    // Paths are relative to the build root. Use the empty string (`""`) to refer to
+    // the build root itself.
+    // A directory listed here means that all files within, recursively, are included.
     .paths = .{
         "build.zig",
         "build.zig.zon",

@@ -31,6 +31,11 @@ pub fn build(b: *std.Build) void {
     };
     const target = b.resolveTargetQuery(target_query);
 
+    const sorz = b.dependency("sorz", .{
+        .optimize = optimize,
+        .target = target,
+        .sorz_trace = trace_support,
+    });
     const dtb = b.dependency("dtb", .{
         .target = target,
         .optimize = optimize,
@@ -38,14 +43,17 @@ pub fn build(b: *std.Build) void {
 
     const kernel = b.addExecutable(.{
         .name = "kernel.sorz",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/root.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "dtb", .module = dtb.module("dtb") },
+        .root_module = b.createModule(
+            .{
+                .root_source_file = b.path("src/main.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{
+                    .{ .name = "dtb", .module = dtb.module("dtb") },
+                    .{ .name = "sorz", .module = sorz.module("sorz") },
+                },
             },
-        }),
+        ),
     });
     if (trace_support) {
         kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.trace.ld" });
@@ -54,7 +62,6 @@ pub fn build(b: *std.Build) void {
     } else {
         kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.ld" });
     }
-    kernel.root_module.addOptions("sorz_options", sorz_options);
 
     const init_proc = b.dependency("init", .{});
     const init_exe = init_proc.artifact("init");

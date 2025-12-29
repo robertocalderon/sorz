@@ -1,5 +1,5 @@
-const root = @import("root.zig");
-const dev = root.dev;
+const sorz = @import("sorz");
+const dev = sorz.dev;
 const std = @import("std");
 const DTB = @import("dtb");
 
@@ -11,15 +11,15 @@ extern var __kernel_end: u8;
 pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     const root_dev = try early_init(hartid, _dtb);
 
-    var gpa = root.KERNEL_GPA{};
+    var gpa = sorz.KERNEL_GPA{};
     const alloc = gpa.allocator();
 
-    const kernel_threat_state: *root.KernelThreadState = try alloc.create(root.KernelThreadState);
+    const kernel_threat_state: *sorz.KernelThreadState = try alloc.create(sorz.KernelThreadState);
 
     std.log.info("Iniciando interrupciones", .{});
-    try root.interrupts.init(root.phys_mem.page_alloc(), kernel_threat_state);
+    try sorz.interrupts.init(sorz.phys_mem.page_alloc(), kernel_threat_state);
     std.log.info("Iniciando memoria virtual", .{});
-    var kernel_as = try root.virt_mem.init(alloc);
+    var kernel_as = try sorz.virt_mem.init(alloc);
     kernel_as.activate();
 
     kernel_threat_state.* = .{
@@ -28,11 +28,11 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
         .gpa_alloc = gpa,
         .hartid = hartid,
         .platform_interrupt_controller = undefined,
-        .self_process_list = try alloc.create(root.process.CoreProcessList),
+        .self_process_list = try alloc.create(sorz.process.CoreProcessList),
     };
     kernel_threat_state.self_process_list.* = .init(alloc);
 
-    const device_registry = try alloc.create(root.dev.drivers.DriverRegistry);
+    const device_registry = try alloc.create(sorz.dev.drivers.DriverRegistry);
     device_registry.* = .init(alloc);
     _ = try device_registry.device_init(&root_dev, alloc, &.{});
     try device_registry.init_nodes(kernel_threat_state);
@@ -46,17 +46,17 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     //
     // std.log.debug("Doing real serial initialization after interrupt controller is ready", .{});
     //
-    // var serial = root.dev.serial.Serial.default(&.{});
+    // var serial = sorz.dev.serial.Serial.default(&.{});
     // var serial_dev = serial.get_device();
     // try serial_dev.init(kernel_threat_state);
-    // root.log.init_logging(&serial.interface);
+    // sorz.log.init_logging(&serial.interface);
 
     while (true) {
         asm volatile ("wfi");
     }
 
     // std.log.info("Creando primer proceso", .{});
-    // var proc = try alloc.create(root.process.Process);
+    // var proc = try alloc.create(sorz.process.Process);
     // proc.* = try .new(alloc);
     // const init = &@import("init.zig").init;
     // proc.ip = @intFromPtr(init);
@@ -71,9 +71,9 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     //     var list = guard.deref();
     //     try list.append(proc);
     // }
-    // root.interrupts.set_current_process(proc);
+    // sorz.interrupts.set_current_process(proc);
     // // drop to u-mode
-    // var sstatus = root.registers.supervisor.SStatus.read();
+    // var sstatus = sorz.registers.supervisor.SStatus.read();
     // sstatus.SPP = .User;
     // sstatus.write();
     // asm volatile (
@@ -101,33 +101,33 @@ fn early_init(hartid: usize, _dtb: *const u8) !DTB.FDTDevice {
 
     const physical_memory_area = try find_physical_memory_region(alloc, &root_dev);
     std.log.info("Iniciando reservador de memoria fisica", .{});
-    root.phys_mem.init_physical_alloc(physical_memory_area);
+    sorz.phys_mem.init_physical_alloc(physical_memory_area);
 
     return root_dev;
 }
 
 fn init_logging(alloc: std.mem.Allocator) !void {
     const clock = dev.clock.Clock.mtime();
-    root.log.set_default_clock(clock);
+    sorz.log.set_default_clock(clock);
 
-    if (try root.sbi.sbi_probe_extension(.DebugConsoleExtension)) {
+    if (try sorz.sbi.sbi_probe_extension(.DebugConsoleExtension)) {
         // SBI debug writer doesn't reference
         const buffer = try alloc.alloc(u8, 128);
-        const sbi_writer: *root.sbi.SBIDebugWriter = try alloc.create(root.sbi.SBIDebugWriter);
+        const sbi_writer: *sorz.sbi.SBIDebugWriter = try alloc.create(sorz.sbi.SBIDebugWriter);
         sbi_writer.* = .init(buffer);
 
-        root.log.init_logging(&sbi_writer.interface);
+        sorz.log.init_logging(&sbi_writer.interface);
         std.log.info("Using sbi debug interface for writing logs", .{});
 
         // TODO: register this somehow, right now this will just leak and live forever
     } else {
         // Make sure to disable logging if writting is disabled
-        root.log.init_logging(null);
+        sorz.log.init_logging(null);
     }
 }
 
-fn find_physical_memory_region(alloc: std.mem.Allocator, root_dev: *const DTB.FDTDevice) !root.mem.MemoryArea {
-    var reserved_areas = std.array_list.Managed(root.mem.MemoryArea).init(alloc);
+fn find_physical_memory_region(alloc: std.mem.Allocator, root_dev: *const DTB.FDTDevice) !sorz.mem.MemoryArea {
+    var reserved_areas = std.array_list.Managed(sorz.mem.MemoryArea).init(alloc);
     defer reserved_areas.deinit();
 
     const rsvmem = root_dev.find_device("/reserved-memory");
@@ -155,22 +155,22 @@ fn find_physical_memory_region(alloc: std.mem.Allocator, root_dev: *const DTB.FD
     var memory_dev = root_dev.find_device("/memory").?;
     std.log.info("mem type: {s}", .{memory_dev.find_prop("device_type").?.data});
     std.log.info("reg: {x}", .{memory_dev.find_prop("reg").?.data});
-    const memory_area = root.mem.MemoryArea{
+    const memory_area = sorz.mem.MemoryArea{
         .start = memory_dev.find_prop("reg").?.get_u64(0).?,
         .end = memory_dev.find_prop("reg").?.get_u64(0).? + memory_dev.find_prop("reg").?.get_u64(8).?,
     };
     std.log.info("Memory range: 0x{x:0>8} -> 0x{x:0>8}", .{ memory_area.start, memory_area.end });
-    var valid_memories_ranges = std.array_list.Managed(root.mem.MemoryArea).init(alloc);
+    var valid_memories_ranges = std.array_list.Managed(sorz.mem.MemoryArea).init(alloc);
     defer valid_memories_ranges.deinit();
 
     try valid_memories_ranges.append(memory_area);
-    try root.mem.MemoryArea.remove_areas(&valid_memories_ranges, reserved_areas.items);
+    try sorz.mem.MemoryArea.remove_areas(&valid_memories_ranges, reserved_areas.items);
     for (valid_memories_ranges.items) |area| {
         std.log.info("Valid area: 0x{x:0>8} -> 0x{x:0>8}", .{ area.start, area.end });
     }
     std.debug.assert(valid_memories_ranges.items.len > 0);
 
-    var bigger_area: root.mem.MemoryArea = .{
+    var bigger_area: sorz.mem.MemoryArea = .{
         .start = 0,
         .end = 0,
     };
@@ -183,3 +183,95 @@ fn find_physical_memory_region(alloc: std.mem.Allocator, root_dev: *const DTB.FD
 }
 
 var plic: dev.plic.PLIC = undefined;
+
+pub export fn _fw_entry(hartid: usize, dtb: *const u8) noreturn {
+    kernel_main(hartid, dtb) catch {};
+    sorz.qemu.exit(.Success);
+}
+
+extern var _fw_stack_end: u8;
+
+pub export fn _start() linksection(".text.start") callconv(.naked) void {
+    @setRuntimeSafety(false);
+    asm volatile (
+        \\  mv  t0, a0
+        \\  mv  t1, a1
+    );
+    asm volatile (
+        \\  mv      a0, a0
+        \\  csrw    satp, zero
+        \\  addi    sp, sp, -16
+        \\  sw      zero, 4(sp)
+        \\  sw      zero, 0(sp)
+        \\  addi    s0, sp, 16
+        \\  mv      a0, t0
+        \\  mv      a1, t1
+        \\  call    _fw_entry
+        :
+        : [_SP] "{sp}" (@as(usize, @intFromPtr(&_fw_stack_end))),
+          [_RA] "{ra}" (0),
+          [_S0] "{s0}" (0),
+    );
+}
+
+pub const std_options: std.Options = .{
+    .logFn = sorz.log.log_fn,
+    .page_size_max = 4096,
+    .page_size_min = 4096,
+};
+
+pub const os = struct {
+    pub const heap = struct {
+        pub const page_allocator = sorz.phys_mem.page_alloc();
+    };
+};
+
+var PANIC_SERIAL_BUFFER: [128]u8 = undefined;
+
+const PANIC = switch (sorz.options.trace) {
+    true => struct {
+        pub var PANIC_ALLOC: [16 * 1024 * 1024]u8 = undefined;
+    },
+    false => struct {},
+};
+
+var handling_panic: bool = false;
+
+pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
+    var serial = dev.serial.Serial.default(&PANIC_SERIAL_BUFFER);
+    sorz.log.init_logging(&serial.interface);
+
+    std.log.err("PANIC!!!!", .{});
+    std.log.err("MSG: {s}", .{msg});
+    if (handling_panic) {
+        std.log.err("PANIC WHILE HANDLING PANIC!!!!!!", .{});
+        std.log.err("Aborting real handling of panic!!!!", .{});
+        sorz.qemu.exit(.Failure);
+    }
+    handling_panic = true;
+    if (sorz.options.trace) blk: {
+        var panic_alloc = std.heap.FixedBufferAllocator.init(&PANIC.PANIC_ALLOC);
+        var debug_info = @import("freestanding").DebugInfo.init(panic_alloc.allocator(), .{}) catch |err| {
+            std.log.err("panic: debug info err = {any}\n", .{err});
+            sorz.qemu.exit(.Failure);
+        };
+        defer debug_info.deinit();
+
+        debug_info.printStackTrace(sorz.log.get_current_writer() orelse break :blk, ret_addr orelse @returnAddress(), @frameAddress()) catch |err| {
+            std.log.err("panic: stacktrace err = {any}\n", .{err});
+            sorz.qemu.exit(.Failure);
+        };
+    } else {
+        var iter = std.debug.StackIterator.init(ret_addr orelse @returnAddress(), @frameAddress());
+        std.log.err("No support for debug self info, printing only addresses of stack trace", .{});
+        var idx: usize = 0;
+        while (iter.next()) |addr| {
+            std.log.err("\t{d: >3}: 0x{x:0>8}", .{ idx, addr });
+            idx += 1;
+        }
+    }
+
+    serial.interface.flush() catch {};
+    // for now exit qemu
+    sorz.qemu.exit(.Failure);
+}
