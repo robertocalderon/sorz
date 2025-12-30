@@ -24,14 +24,14 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     std.log.debug("Test looking for file...", .{});
     const find_id = try fs.search_file_block_id("/init");
     std.log.debug("Result file search: {any}", .{find_id});
-    var inode = fs.get_fs().open_file("/init");
-    std.log.debug("Results through FS interface:  {any}", .{inode});
+    var inode = try fs.get_fs().open_file("/init");
+    std.log.debug("Results through FS interface:  {any}", .{inode.simple_block_ptrs});
     var vfs = try sorz.vfs.new(alloc);
     fs.fs_id = vfs.generate_fs_id();
     try vfs.register_fs(fs.get_fs());
     vfs.set_root_fs(fs.get_fs());
-    inode = vfs.open_file("/init");
-    std.log.debug("Results through VFS interface: {any}", .{inode});
+    inode = try vfs.open_file("/init");
+    std.log.debug("Results through VFS interface: {any}", .{inode.simple_block_ptrs});
 
     const kernel_threat_state: *sorz.KernelThreadState = try alloc.create(sorz.KernelThreadState);
 

@@ -173,21 +173,16 @@ fn open_file(_self: *anyopaque, path: []const u8) Error!INode {
     const self: *Self = @ptrCast(@alignCast(_self));
     const search_results = try self.search_file_block_id(path);
     const file_blocks = std.mem.alignForward(usize, search_results.header.file_size, self.block_size) / self.block_size;
-    if (file_blocks > 12) {
-        // TODO: when inodes support more than 12 blocks change this
-        return Error.FileDoesntExists;
-    }
 
-    var ret = INode{
-        .fs_id = self.fs_id,
-        .file_len = search_results.header.file_size,
-        .inode_number = 0,
-        .ref_count = 1,
-        .simple_block_ptrs = undefined,
-    };
+    var ret: INode = try .newCapacity(self.alloc, search_results.header.file_size, file_blocks);
+    ret.fs_id = self.fs_id;
+    ret.file_len = search_results.header.file_size;
+    ret.inode_number = 0;
+    ret.ref_count = 1;
+
     @memset(ret.simple_block_ptrs[0..12], 0);
     for (0..file_blocks) |i| {
-        ret.simple_block_ptrs[i] = search_results.block_id + 1 + i;
+        try ret.set_block_at_offset(i, search_results.block_id + 1 + i);
     }
     return ret;
 }
