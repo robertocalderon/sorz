@@ -242,6 +242,28 @@ pub fn free_pages(pages: []u8) void {
     }
 }
 
+pub fn mark_page_as_used(addr: usize) void {
+    const lock = PHYSICAL_MEMORY.lock();
+    defer lock.deinit();
+
+    const base_ptr: usize = std.mem.alignBackward(usize, addr, 4096);
+    const low: usize = @intFromPtr(lock.deref().raw_pages.ptr);
+    const high: usize = low + lock.deref().raw_pages.len;
+
+    if ((base_ptr < low) or (high < base_ptr)) {
+        return;
+    }
+
+    const offset = base_ptr - low;
+
+    const start_page = offset / 4096;
+
+    const page_index = start_page;
+    const byte_offset = page_index / 8;
+    const bit_offset = page_index % 8;
+    lock.deref().alloc_bitmap[byte_offset] |= (@as(u8, 1) << @intCast(bit_offset));
+}
+
 pub fn page_alloc() std.mem.Allocator {
     return .{
         .ptr = @ptrFromInt(1),
