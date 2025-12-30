@@ -25,21 +25,30 @@ pub fn get_device(self: *Self) dev.Device {
         .ctx = @ptrCast(self),
         .vtable = &dev.Device.VTable{
             .get_device_name = &get_device_name,
+            .get_block_device = &get_block_device,
             .init = &init,
         },
     };
 }
 
 fn get_block_device(_self: *anyopaque) dev.Device.Error!?dev.BlockDevice {
-    const self: *Self = @ptrCast(@alignCast(_self));
     return dev.BlockDevice{
         .ctx = _self,
         .vtable = &dev.BlockDevice.VTable{
-            .block_size = self.block_size,
-            .n_blocks = self.n_blocks,
+            .block_size = &get_block_size,
+            .n_blocks = &get_n_blocks,
             .read_block = &read_block,
+            .write_block = &write_block,
         },
     };
+}
+fn get_block_size(self: *anyopaque) dev.BlockDevice.Error!usize {
+    const ptr: *Self = @ptrCast(@alignCast(self));
+    return ptr.block_size;
+}
+fn get_n_blocks(self: *anyopaque) dev.BlockDevice.Error!usize {
+    const ptr: *Self = @ptrCast(@alignCast(self));
+    return ptr.n_blocks;
 }
 pub fn read_block(_self: *anyopaque, block_id: usize, buffer: []u8) dev.BlockDevice.Error![]u8 {
     const self: *Self = @ptrCast(@alignCast(_self));
@@ -67,7 +76,6 @@ pub fn write_block(_self: *anyopaque, block_id: usize, buffer: []const u8) dev.B
         return dev.BlockDevice.Error.InvalidAddress;
     }
     @memcpy(self.raw_data[start..end], slice);
-    return slice;
 }
 
 fn init(_self: *anyopaque, state: *root.KernelThreadState) dev.Device.Error!void {

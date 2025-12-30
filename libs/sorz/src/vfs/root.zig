@@ -1,6 +1,8 @@
 const std = @import("std");
 
 pub const RamFS = @import("ramfs.zig");
+const BlockDevice = @import("../dev/block_device.zig");
+const INode = @import("inode.zig");
 
 const Self = @This();
 
@@ -22,8 +24,12 @@ pub fn deinit(self: *Self) void {
 }
 
 pub const FS = struct {
-    const Error = error{} || std.mem.Allocator.Error;
-    pub const VTable = struct {};
+    pub const Error = error{
+        FileDoesntExists,
+    } || BlockDevice.Error || std.mem.Allocator.Error;
+    pub const VTable = struct {
+        open_file: *const fn (self: *anyopaque, path: []const u8) Error!INode,
+    };
     ctx: *anyopaque,
     vtable: *const VTable,
     fs_id: usize,

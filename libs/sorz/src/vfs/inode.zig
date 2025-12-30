@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Self = @This();
 
-dev_id: usize,
+fs_id: usize,
 inode_number: u64,
 file_len: u64,
 // user_id: u32,
@@ -21,7 +21,7 @@ simple_block_ptrs: [12]u64,
 pub fn newCapacity(alloc: std.mem.Allocator, file_size: usize, n_blocks: usize) !Self {
     _ = alloc;
     const ret: Self = .{
-        .dev_id = 0,
+        .fs_id = 0,
         .ctime = 0,
         .file_len = file_size,
         .access = 0,

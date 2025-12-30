@@ -8,6 +8,8 @@ pub const drivers = @import("drivers/root.zig");
 const std = @import("std");
 const root = @import("../root.zig");
 
+pub const Ramdisk = @import("drivers/ramdisk.zig");
+
 pub const Device = struct {
     pub const Error = error{
         BufferTooSmall,
@@ -53,6 +55,9 @@ pub const Device = struct {
     }
     pub fn get_io_device(self: Device) Error!?IODevice {
         return self.vtable.get_io_device(self.ctx);
+    }
+    pub fn get_block_device(self: Device) Error!?BlockDevice {
+        return self.vtable.get_block_device(self.ctx);
     }
 };
 
