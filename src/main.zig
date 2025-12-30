@@ -18,7 +18,7 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     var ramdev: sorz.dev.Ramdisk = sorz.dev.Ramdisk.newWithBuffer(512, INITRD);
     const ramdev_bd = (try ramdev.get_device().get_block_device()).?;
     var fs: sorz.vfs.RamFS = try .new(alloc, ramdev_bd, 1);
-    try fs.format();
+
     std.log.debug("Allocating test file...", .{});
     std.log.debug("==========================================================", .{});
     std.log.debug("Test looking for file...", .{});

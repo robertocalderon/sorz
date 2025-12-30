@@ -103,12 +103,15 @@ const FileSearchResult = struct {
     block_id: usize,
     header: BlockHeader,
 };
-pub fn search_file_block_id(self: *Self, path: []const u8) FS.Error!?FileSearchResult {
+pub fn search_file_block_id(self: *Self, path: []const u8) FS.Error!FileSearchResult {
     var i = self.starting_block;
     while (i < self.device_size) {
         const tmp = try self.read_block_at_id(i);
         const header: *const BlockHeaderInDisk = @ptrCast(@alignCast(tmp.ptr));
         const file_name = self.get_name(header);
+        if (header.file_alloc == 0 and header.file_size == 0 and header.name == 0) {
+            return FS.Error.FileDoesntExists;
+        }
         if (std.mem.eql(u8, file_name, path)) {
             return .{
                 .block_id = i,
@@ -122,7 +125,7 @@ pub fn search_file_block_id(self: *Self, path: []const u8) FS.Error!?FileSearchR
         const file_block_count = 1 + file_size;
         i += file_block_count;
     }
-    return null;
+    return FS.Error.FileDoesntExists;
 }
 pub fn alloc_file(self: *Self, path: []const u8, current_size: usize, max_size: usize) !?usize {
     if (path.len > self.max_name_size()) {
@@ -168,7 +171,7 @@ pub fn alloc_file(self: *Self, path: []const u8, current_size: usize, max_size: 
 
 fn open_file(_self: *anyopaque, path: []const u8) Error!INode {
     const self: *Self = @ptrCast(@alignCast(_self));
-    const search_results = (try self.search_file_block_id(path)) orelse return Error.FileDoesntExists;
+    const search_results = try self.search_file_block_id(path);
     const file_blocks = std.mem.alignForward(usize, search_results.header.file_size, self.block_size) / self.block_size;
     if (file_blocks > 12) {
         // TODO: when inodes support more than 12 blocks change this
