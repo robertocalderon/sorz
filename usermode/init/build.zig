@@ -1,30 +1,8 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-
-    var features_add = std.Target.riscv.featureSet(&.{});
-    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.@"32bit"));
-    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.i));
-    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.m));
-    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.a));
-    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.c));
-    features_add.addFeature(@intFromEnum(std.Target.riscv.Feature.zihintpause));
-
-    var features_sub = std.Target.riscv.featureSet(&.{});
-    features_sub.removeFeature(@intFromEnum(std.Target.riscv.Feature.f));
-    features_sub.removeFeature(@intFromEnum(std.Target.riscv.Feature.d));
-
-    const target_query: std.Target.Query = .{
-        .cpu_arch = .riscv32,
-        .cpu_features_add = features_add,
-        .cpu_features_sub = features_sub,
-        .cpu_model = .baseline,
-        .os_tag = .freestanding,
-        .abi = .none,
-        .ofmt = .elf,
-    };
-    const target = b.resolveTargetQuery(target_query);
 
     const kernel_lib = b.dependency("sorz", .{ .optimize = optimize, .target = target });
     const kernel_mod = kernel_lib.module("sorz");

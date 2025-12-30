@@ -66,7 +66,7 @@ pub fn build(b: *std.Build) void {
         kernel.setLinkerScript(.{ .cwd_relative = "./src/linker.ld" });
     }
 
-    const initrd = try gen_initrd(b, host_target, optimize, sorz);
+    const initrd = try gen_initrd(b, target, host_target, optimize, sorz);
     b.installArtifact(kernel);
 
     const run_step = b.step("run", "Run the app");
@@ -197,6 +197,7 @@ pub const InitrdData = struct {
 
 pub fn gen_initrd(
     b: *std.Build,
+    target: std.Build.ResolvedTarget,
     host_target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     sorz: *std.Build.Dependency,
@@ -212,7 +213,10 @@ pub fn gen_initrd(
             },
         }),
     });
-    const init_proc = b.dependency("init", .{});
+    const init_proc = b.dependency("init", .{
+        .target = target,
+        .optimize = optimize,
+    });
     const init_exe = init_proc.artifact("init");
 
     const initrd_sfs_gen_run = b.addRunArtifact(initrd_sfs_gen);
