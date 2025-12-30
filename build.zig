@@ -67,7 +67,6 @@ pub fn build(b: *std.Build) void {
     }
 
     const initrd = try gen_initrd(b, host_target, optimize, sorz);
-    kernel.step.dependOn(initrd.run);
     b.installArtifact(kernel);
 
     const run_step = b.step("run", "Run the app");
