@@ -19,6 +19,15 @@ pub fn new(alloc: std.mem.Allocator, block_size: usize, max_blocks: usize) Error
         .n_blocks = max_blocks,
     };
 }
+pub fn newWithBuffer(block_size: usize, buffer: []u8) Self {
+    const n_blocks = buffer.len / block_size;
+    const real_buffer = buffer[0..(n_blocks * block_size)];
+    return .{
+        .block_size = block_size,
+        .n_blocks = n_blocks,
+        .raw_data = real_buffer,
+    };
+}
 pub fn deinit(self: Self, alloc: std.mem.Allocator) void {
     alloc.free(self.raw_data);
 }

@@ -15,24 +15,22 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     var gpa = sorz.KERNEL_GPA{};
     const alloc = gpa.allocator();
 
-    var ramdev: sorz.dev.Ramdisk = try sorz.dev.Ramdisk.new(alloc, 512, 32);
+    var ramdev: sorz.dev.Ramdisk = sorz.dev.Ramdisk.newWithBuffer(512, INITRD);
     const ramdev_bd = (try ramdev.get_device().get_block_device()).?;
     var fs: sorz.vfs.RamFS = try .new(alloc, ramdev_bd, 1);
     try fs.format();
     std.log.debug("Allocating test file...", .{});
     std.log.debug("==========================================================", .{});
-    const id = try fs.alloc_file("/hola.bin", 0, 128);
-    std.log.debug("Allocated file block id: {any}", .{id});
     std.log.debug("Test looking for file...", .{});
-    const find_id = try fs.search_file_block_id("/hola.bin");
+    const find_id = try fs.search_file_block_id("/init");
     std.log.debug("Result file search: {any}", .{find_id});
-    var inode = fs.get_fs().open_file("/hola.bin");
+    var inode = fs.get_fs().open_file("/init");
     std.log.debug("Results through FS interface:  {any}", .{inode});
     var vfs = try sorz.vfs.new(alloc);
     fs.fs_id = vfs.generate_fs_id();
     try vfs.register_fs(fs.get_fs());
     vfs.set_root_fs(fs.get_fs());
-    inode = vfs.open_file("/hola.bin");
+    inode = vfs.open_file("/init");
     std.log.debug("Results through VFS interface: {any}", .{inode});
 
     const kernel_threat_state: *sorz.KernelThreadState = try alloc.create(sorz.KernelThreadState);
