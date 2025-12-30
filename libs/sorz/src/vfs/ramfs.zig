@@ -177,12 +177,12 @@ fn open_file(_self: *anyopaque, path: []const u8) Error!INode {
 
     var ret = INode{
         .fs_id = self.fs_id,
-        .file_len = search_results,
+        .file_len = search_results.header.file_size,
         .inode_number = 0,
         .ref_count = 1,
         .simple_block_ptrs = undefined,
     };
-    @memset(ret.simple_block_ptrs, 12);
+    @memset(ret.simple_block_ptrs[0..12], 0);
     for (0..file_blocks) |i| {
         ret.simple_block_ptrs[i] = search_results.block_id + 1 + i;
     }

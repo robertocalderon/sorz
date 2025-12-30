@@ -25,6 +25,8 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     std.log.debug("Test looking for file...", .{});
     const find_id = try fs.search_file_block_id("/hola.bin");
     std.log.debug("Result file search: {any}", .{find_id});
+    const inode = fs.get_fs().open_file("/hola.bin");
+    std.log.debug("Results through FS interface: {any}", .{inode});
 
     const kernel_threat_state: *sorz.KernelThreadState = try alloc.create(sorz.KernelThreadState);
 

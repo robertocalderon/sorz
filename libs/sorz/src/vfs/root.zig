@@ -33,4 +33,8 @@ pub const FS = struct {
     ctx: *anyopaque,
     vtable: *const VTable,
     fs_id: usize,
+
+    pub fn open_file(self: FS, path: []const u8) Error!INode {
+        return self.vtable.open_file(self.ctx, path);
+    }
 };
