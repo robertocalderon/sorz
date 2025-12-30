@@ -7,6 +7,7 @@ var EARLY_ALLOC_BUFFER: [4 * 1024]u8 = undefined;
 
 extern var __kernel_start: u8;
 extern var __kernel_end: u8;
+var INITRD: []u8 = undefined;
 
 pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     const root_dev = try early_init(hartid, _dtb);
@@ -122,8 +123,18 @@ fn early_init(hartid: usize, _dtb: *const u8) !DTB.FDTDevice {
     const physical_memory_area = try find_physical_memory_region(alloc, &root_dev);
     std.log.info("Iniciando reservador de memoria fisica", .{});
     sorz.phys_mem.init_physical_alloc(physical_memory_area);
-
-    // root_dev.print_device_tree_recursive(0, .err);
+    std.log.info("Obteniendo initrd", .{});
+    const chosen = root_dev.find_device("/chosen") orelse @panic("No chosen device!! (no initrd)");
+    const initrd_start = (chosen.find_prop("linux,initrd-start") orelse @panic("No linux,initrd-start found!!")).get_u64(0).?;
+    const initrd_end = (chosen.find_prop("linux,initrd-end") orelse @panic("No linux,initrd-end found!!")).get_u64(0).?;
+    var iter = initrd_start;
+    while (iter < std.mem.alignForward(u64, initrd_end, 4096)) {
+        sorz.phys_mem.mark_page_as_used(@intCast(iter));
+        iter += 4096;
+    }
+    std.log.info("Found initrd: 0x{x:0>8} -> 0x{x:0>8}", .{ initrd_start, initrd_end });
+    INITRD.ptr = @ptrFromInt(@as(usize, @intCast(initrd_start)));
+    INITRD.len = @intCast(initrd_end - initrd_start);
 
     return root_dev;
 }
