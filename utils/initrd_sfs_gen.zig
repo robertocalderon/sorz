@@ -14,7 +14,7 @@ pub fn main() !void {
     const input_files = args[2..];
     const block_size = 512;
     // 1 for superblock + N_FILES for headers + FILE_SIZE (rounded to block size)
-    var required_size = 1 + input_files.len;
+    var required_size = 1 + input_files.len + 2;
     const handles: []std.fs.File = try alloc.alloc(std.fs.File, input_files.len);
     defer alloc.free(handles);
 
@@ -34,6 +34,8 @@ pub fn main() !void {
     defer fs.deinit();
     try fs.format();
 
+    const root_block_id = (fs.alloc_file("/", @sizeOf(u32) * input_files.len, @sizeOf(u32) * input_files.len, .Directory) catch @panic("Couldn't reserve file on ramdisk")) orelse @panic("Couldn't found free space on ramdisk");
+    _ = root_block_id;
     for (input_files, 0..) |input, i| {
         var iter = std.mem.splitBackwardsScalar(u8, input, '/');
         const file_name = iter.next() orelse @panic(try std.fmt.allocPrint(alloc, "Couldn't find the file name of: \"{s}\"", .{input}));
@@ -42,7 +44,7 @@ pub fn main() !void {
 
         const stat = try handles[i].stat();
 
-        const next_block_id = (fs.alloc_file(path, @intCast(stat.size), @intCast(stat.size)) catch @panic("Couldn't reserver file on ramdisk")) orelse @panic("Couldn't found free space on ramdisk");
+        const next_block_id = (fs.alloc_file(path, @intCast(stat.size), @intCast(stat.size), .RegularFile) catch @panic("Couldn't reserve file on ramdisk")) orelse @panic("Couldn't found free space on ramdisk");
         const start = (next_block_id + 1) * block_size;
         const end = start + @as(usize, @intCast(stat.size));
         _ = try handles[i].readAll(ramdisk.raw_data[start..end]);

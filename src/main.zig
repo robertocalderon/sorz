@@ -30,8 +30,8 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     fs.fs_id = vfs.generate_fs_id();
     try vfs.register_fs(fs.get_fs());
     vfs.set_root_fs(fs.get_fs());
-    inode = try vfs.open_file("/init");
-    std.log.debug("Results through VFS interface: {any}", .{inode.simple_block_ptrs});
+    inode = try vfs.open_file("/");
+    std.log.debug("Results through VFS interface: {any}", .{inode});
     var buffer: [32]u8 = undefined;
     _ = try vfs.read_inode(inode, 0, &buffer);
     std.log.debug("Primer bloque: {s}", .{buffer});

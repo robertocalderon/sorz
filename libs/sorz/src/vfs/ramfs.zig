@@ -63,12 +63,15 @@ pub const Superblock = extern struct {
 pub const BlockHeader = struct {
     file_size: usize,
     file_alloc: usize,
+    file_type: INode.INodeType,
 };
 pub const BlockHeaderInDisk = extern struct {
     /// Real file size in bytes
     file_size: u32,
     /// Reserved space for file, in blocks
     file_alloc: u32,
+    /// File type
+    file_type: INode.INodeType,
     name: u8,
 };
 
@@ -118,6 +121,7 @@ pub fn search_file_block_id(self: *Self, path: []const u8) FS.Error!FileSearchRe
                 .header = .{
                     .file_size = header.file_size,
                     .file_alloc = header.file_alloc,
+                    .file_type = header.file_type,
                 },
             };
         }
@@ -127,7 +131,7 @@ pub fn search_file_block_id(self: *Self, path: []const u8) FS.Error!FileSearchRe
     }
     return FS.Error.FileDoesntExists;
 }
-pub fn alloc_file(self: *Self, path: []const u8, current_size: usize, max_size: usize) !?usize {
+pub fn alloc_file(self: *Self, path: []const u8, current_size: usize, max_size: usize, file_type: INode.INodeType) !?usize {
     if (path.len > self.max_name_size()) {
         // TODO: make an FS Error and report that
         @panic("Filename too big");
@@ -156,6 +160,7 @@ pub fn alloc_file(self: *Self, path: []const u8, current_size: usize, max_size: 
     const header: *BlockHeaderInDisk = @ptrCast(@alignCast(tmp.ptr));
     header.file_size = @intCast(size);
     header.file_alloc = @as(u32, @intCast(real_max_size / self.block_size));
+    header.file_type = file_type;
     const name_buffer_unsized: [*]u8 = @ptrCast(&header.name);
     const name_buffer = name_buffer_unsized[0..self.max_name_size()];
     @memset(name_buffer, 0);
@@ -174,7 +179,7 @@ fn open_file(_self: *anyopaque, path: []const u8) Error!INode {
     const search_results = try self.search_file_block_id(path);
     const file_blocks = std.mem.alignForward(usize, search_results.header.file_size, self.block_size) / self.block_size;
 
-    var ret: INode = try .newCapacity(.RegularFile, self.alloc, search_results.header.file_size, file_blocks);
+    var ret: INode = try .newCapacity(search_results.header.file_type, self.alloc, search_results.header.file_size, file_blocks);
     ret.fs_id = self.fs_id;
     ret.file_len = search_results.header.file_size;
     ret.inode_number = 0;

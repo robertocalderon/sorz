@@ -4,8 +4,9 @@ const File = @import("file.zig");
 
 const Self = @This();
 
-pub const INodeType = enum {
+pub const INodeType = enum(u8) {
     RegularFile,
+    Directory,
 };
 
 fs_id: usize,
