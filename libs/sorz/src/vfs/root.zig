@@ -55,7 +55,7 @@ pub fn open_file(self: Self, path: []const u8) FS.Error!INode {
     return FS.Error.FileDoesntExists;
 }
 
-pub fn read_inode_block(self: Self, inode: INode, offset: usize, buffer: []u8) ![]u8 {
+pub fn read_inode(self: Self, inode: INode, offset: usize, buffer: []u8) ![]u8 {
     const fs: FS = self.available_fs.get(inode.fs_id) orelse return FS.Error.SpecifiedFSDoesntExists;
     return fs.read_file(inode, offset, buffer);
 }
@@ -64,6 +64,7 @@ pub const FS = struct {
     pub const Error = error{
         FileDoesntExists,
         SpecifiedFSDoesntExists,
+        ReadingOutsideOfFile,
     } || BlockDevice.Error || std.mem.Allocator.Error;
     pub const VTable = struct {
         open_file: *const fn (self: *anyopaque, path: []const u8) Error!INode,
@@ -97,3 +98,57 @@ pub const FS = struct {
         return Error.FileDoesntExists;
     }
 };
+
+pub const Reader = struct {
+    inode: INode,
+    vfs: *const Self,
+    interface: std.Io.Reader,
+    offset: usize,
+
+    fn stream(r: *std.Io.Reader, w: *std.Io.Writer, limit: std.Io.Limit) std.Io.Reader.StreamError!usize {
+        const self: *Reader = @fieldParentPtr("interface", r);
+        var l: usize = 0;
+        switch (limit) {
+            .nothing => return 0,
+            .unlimited => l = @intCast(self.inode.file_len),
+            _ => |len| l = len,
+        }
+        var read_storage: [32]u8 = undefined;
+        const read_buffer: []u8 = &read_storage;
+        var total_readed = 0;
+        while (l > 0) {
+            if (self.offset >= self.inode.file_len) {
+                return std.Io.Reader.StreamError.EndOfStream;
+            }
+            const readed = self.vfs.read_inode(self.inode, self.offset, read_buffer) catch |e| {
+                if (e == FS.Error.ReadingOutsideOfFile) {
+                    return std.Io.Reader.StreamError.EndOfStream;
+                }
+                return std.Io.Reader.StreamError.ReadFailed;
+            };
+            w.writeAll(read_buffer) catch {
+                return std.Io.Reader.StreamError.WriteFailed;
+            };
+            self.offset += readed.len;
+            l -= readed.len;
+            total_readed += readed.len;
+        }
+        return total_readed;
+    }
+};
+
+pub fn reader(self: *const Self, inode: INode, buffer: []u8) Reader {
+    return .{
+        .inode = inode,
+        .vfs = self,
+        .offset = 0,
+        .interface = .{
+            .buffer = buffer,
+            .end = 0,
+            .seek = 0,
+            .vtable = &.{
+                .stream = &Reader.stream,
+            },
+        },
+    };
+}

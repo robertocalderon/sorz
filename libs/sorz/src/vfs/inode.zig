@@ -136,7 +136,7 @@ pub fn set_block_at_offset(self: *Self, offset: usize, block_id: u64) !void {
 pub fn get_block_at_offset(self: Self, offset: usize) !u64 {
     var current_offset = offset;
     if (current_offset >= self.n_blocks) {
-        return fs.FS.Error.BufferTooSmall;
+        return fs.FS.Error.ReadingOutsideOfFile;
     }
     if (current_offset < 12) {
         return self.simple_block_ptrs[current_offset];
