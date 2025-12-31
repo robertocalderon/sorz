@@ -221,6 +221,41 @@ fn read_file(_self: *anyopaque, inode: INode, offset: usize, buffer: []u8) Error
     return buffer;
 }
 
+fn write_file(_self: *anyopaque, inode: INode, offset: usize, buffer: []const u8) Error!usize {
+    const self: *Self = @ptrCast(@alignCast(_self));
+    if (buffer.len == 0) {
+        return 0;
+    }
+    var coffset: usize = 0;
+    if (offset % self.block_size != 0) {
+        // Un aligned write to first block, need to read data first
+        const block_id = try inode.get_block_at_offset(@intCast(offset / self.block_size));
+        const read_buffer = try self.read_block_at_id(@intCast(block_id));
+        const from_buffer = buffer[0..@min(self.block_size - (offset % self.block_size), buffer.len)];
+        @memcpy(read_buffer[offset % self.block_size ..][0..buffer.len], from_buffer);
+        try self.write_block_at_it(offset / self.block_size, read_buffer);
+        coffset += buffer.len;
+    }
+    // We are sure the next block write is aligned
+    while (coffset < buffer.len) {
+        std.debug.assert((offset + coffset) % self.block_size == 0);
+        const next_write_size = @min(self.block_size, buffer.len - coffset);
+        const block_id = try inode.get_block_at_offset((offset + coffset) / self.block_size);
+        if (next_write_size == self.block_size) {
+            // Can write whole block at once
+            try self.write_block_at_it(@intCast(block_id), buffer[coffset..][0..self.block_size]);
+            coffset += self.block_size;
+            continue;
+        }
+        // final unaligned write
+        const read_buffer = try self.read_block_at_id(@intCast(block_id));
+        @memcpy(read_buffer[0 .. buffer.len - coffset], buffer[coffset..]);
+        try self.write_block_at_it(@intCast(block_id), read_buffer);
+        coffset += buffer[coffset..].len;
+    }
+    return coffset;
+}
+
 pub fn get_fs(self: *Self) FS {
     return FS{
         .fs_id = self.fs_id,
@@ -228,6 +263,7 @@ pub fn get_fs(self: *Self) FS {
         .vtable = &.{
             .open_file = &open_file,
             .read_file = &read_file,
+            .write_file = &write_file,
         },
     };
 }

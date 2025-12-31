@@ -34,8 +34,9 @@ pub fn main() !void {
     defer fs.deinit();
     try fs.format();
 
-    const root_block_id = (fs.alloc_file("/", @sizeOf(u32) * input_files.len, @sizeOf(u32) * input_files.len, .Directory) catch @panic("Couldn't reserve file on ramdisk")) orelse @panic("Couldn't found free space on ramdisk");
-    _ = root_block_id;
+    _ = (fs.alloc_file("/", @sizeOf(u32) * input_files.len, @sizeOf(u32) * input_files.len, .Directory) catch @panic("Couldn't reserve file on ramdisk")) orelse @panic("Couldn't found free space on ramdisk");
+    const root_dir = try fs.get_fs().open_file("/");
+
     for (input_files, 0..) |input, i| {
         var iter = std.mem.splitBackwardsScalar(u8, input, '/');
         const file_name = iter.next() orelse @panic(try std.fmt.allocPrint(alloc, "Couldn't find the file name of: \"{s}\"", .{input}));
@@ -49,6 +50,13 @@ pub fn main() !void {
         const end = start + @as(usize, @intCast(stat.size));
         _ = try handles[i].readAll(ramdisk.raw_data[start..end]);
         handles[i].close();
+
+        var buffer: [4]u8 = undefined;
+        buffer[0] = @intCast((next_block_id >> 0) & 0xff);
+        buffer[1] = @intCast((next_block_id >> 8) & 0xff);
+        buffer[2] = @intCast((next_block_id >> 16) & 0xff);
+        buffer[3] = @intCast((next_block_id >> 24) & 0xff);
+        std.debug.assert((try fs.get_fs().write_file(root_dir, i * @sizeOf(u32), &buffer)) == 4);
     }
     try output_file.writeAll(ramdisk.raw_data);
 }
