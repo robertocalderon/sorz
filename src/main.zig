@@ -32,6 +32,9 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     vfs.set_root_fs(fs.get_fs());
     inode = try vfs.open_file("/init");
     std.log.debug("Results through VFS interface: {any}", .{inode.simple_block_ptrs});
+    var buffer: [32]u8 = undefined;
+    _ = try vfs.read_inode_block(inode, 0, &buffer);
+    std.log.debug("Primer bloque: {s}", .{buffer});
 
     const kernel_threat_state: *sorz.KernelThreadState = try alloc.create(sorz.KernelThreadState);
 

@@ -174,7 +174,7 @@ fn open_file(_self: *anyopaque, path: []const u8) Error!INode {
     const search_results = try self.search_file_block_id(path);
     const file_blocks = std.mem.alignForward(usize, search_results.header.file_size, self.block_size) / self.block_size;
 
-    var ret: INode = try .newCapacity(self.alloc, search_results.header.file_size, file_blocks);
+    var ret: INode = try .newCapacity(.RegularFile, self.alloc, search_results.header.file_size, file_blocks);
     ret.fs_id = self.fs_id;
     ret.file_len = search_results.header.file_size;
     ret.inode_number = 0;
@@ -186,6 +186,35 @@ fn open_file(_self: *anyopaque, path: []const u8) Error!INode {
     }
     return ret;
 }
+fn read_file(_self: *anyopaque, inode: INode, offset: usize, buffer: []u8) Error![]u8 {
+    const self: *Self = @ptrCast(@alignCast(_self));
+    if (buffer.len == 0) {
+        return buffer;
+    }
+    // Align read to block start
+    const start_block: usize = @intCast(offset / self.block_size);
+    _ = try self.read_block_at_id(@intCast(try inode.get_block_at_offset(start_block)));
+    const from_fp = self.device_cache[offset % self.block_size ..];
+    const to_be_read = @min(buffer.len, from_fp.len);
+    @memcpy(buffer.ptr, from_fp[0..to_be_read]);
+
+    // Read all consecutives blocks
+    var remaining = buffer.len - to_be_read;
+    var current_offset = to_be_read;
+    for (0..(remaining + self.block_size - 1) / self.block_size) |i| {
+        if (remaining <= 0) {
+            break;
+        }
+        const next_block: usize = @intCast(try inode.get_block_at_offset(start_block + 1 + i));
+        _ = try self.read_block_at_id(next_block);
+        const reading = @min(remaining, self.block_size);
+        @memcpy(buffer[current_offset..].ptr, self.device_cache[0..reading]);
+        current_offset += reading;
+        remaining -= reading;
+    }
+
+    return buffer;
+}
 
 pub fn get_fs(self: *Self) FS {
     return FS{
@@ -193,6 +222,7 @@ pub fn get_fs(self: *Self) FS {
         .ctx = @ptrCast(self),
         .vtable = &.{
             .open_file = &open_file,
+            .read_file = &read_file,
         },
     };
 }

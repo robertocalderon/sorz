@@ -1,7 +1,12 @@
 const std = @import("std");
 const fs = @import("root.zig");
+const File = @import("file.zig");
 
 const Self = @This();
+
+pub const INodeType = enum {
+    RegularFile,
+};
 
 fs_id: usize,
 inode_number: u64,
@@ -15,12 +20,14 @@ n_blocks: usize,
 // ctime: u64,
 ref_count: u32,
 
+ftype: INodeType,
+
 simple_block_ptrs: [12]u64,
 indirect_block_ptrs: ?*[128]u64,
 double_indirect_block_ptrs: ?*[128]?*[128]u64,
 // triple_indirect_block_ptrs: ?*[128]?*[128]?*[128]u64,
 
-pub fn newCapacity(alloc: std.mem.Allocator, file_size: usize, n_blocks: usize) !Self {
+pub fn newCapacity(ftype: INodeType, alloc: std.mem.Allocator, file_size: usize, n_blocks: usize) !Self {
     var ret: Self = .{
         .fs_id = 0,
         // .ctime = 0,
@@ -30,6 +37,7 @@ pub fn newCapacity(alloc: std.mem.Allocator, file_size: usize, n_blocks: usize) 
         // .atime = 0,
         // .user_id = 0,
         .ref_count = 0,
+        .ftype = ftype,
         // .mtime = 0,
         .inode_number = 0,
         // .group_id = 0,
@@ -125,7 +133,7 @@ pub fn set_block_at_offset(self: *Self, offset: usize, block_id: u64) !void {
     return fs.FS.Error.BufferTooSmall;
 }
 
-pub fn get_block_at_offset(self: *Self, offset: usize) !u64 {
+pub fn get_block_at_offset(self: Self, offset: usize) !u64 {
     var current_offset = offset;
     if (current_offset >= self.n_blocks) {
         return fs.FS.Error.BufferTooSmall;
