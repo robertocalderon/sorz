@@ -8,13 +8,13 @@ pub fn Spinlock(comptime T: type) type {
         const Self = @This();
 
         pub const Guard = struct {
-            parent: *Self,
+            parent: *const Self,
 
             pub fn deinit(self: Guard) void {
-                self.parent.inner_lock.store(false, .release);
+                @constCast(&self.parent.inner_lock).store(false, .release);
             }
             pub fn deref(self: Guard) *T {
-                return &self.parent.storage;
+                return @constCast(&self.parent.storage);
             }
         };
 
@@ -24,13 +24,16 @@ pub fn Spinlock(comptime T: type) type {
                 .inner_lock = .init(false),
             };
         }
-        pub fn lock(self: *Self) Guard {
-            while (self.inner_lock.swap(true, .acquire) == false) {
+        pub fn lock(self: *const Self) Guard {
+            while (@constCast(&self.inner_lock).swap(true, .acquire) == false) {
                 std.atomic.spinLoopHint();
             }
             return .{
                 .parent = self,
             };
+        }
+        pub fn unlock(self: *const Self) void {
+            @constCast(&self.inner_lock).store(false, .release);
         }
     };
 }

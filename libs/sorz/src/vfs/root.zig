@@ -3,28 +3,35 @@ const std = @import("std");
 pub const RamFS = @import("ramfs.zig");
 const BlockDevice = @import("../dev/block_device.zig");
 const INode = @import("inode.zig");
+const sorz = @import("../root.zig");
 
 const Self = @This();
 
 alloc: std.mem.Allocator,
-next_fs_id: usize,
+next_fs_id: std.atomic.Value(usize),
 
 /// Maps from fs_id to FS structure
 available_fs: std.hash_map.AutoHashMap(usize, FS),
 root_fs: FS,
 
+lock: sorz.RWLock,
+
 pub fn new(alloc: std.mem.Allocator) !Self {
     return .{
         .alloc = alloc,
-        .next_fs_id = 1,
+        .next_fs_id = .init(1),
         .available_fs = .init(alloc),
         .root_fs = .empty(),
+        .lock = .init(),
     };
 }
 pub fn deinit(self: *Self) void {
     _ = self;
 }
 pub fn register_fs(self: *Self, fs: FS) !void {
+    const lock = self.lock.write();
+    defer lock.deinit();
+
     const look = self.available_fs.get(fs.fs_id);
     if (look) |_| {
         return error{FSIdAlreadyRegistered}.FSIdAlreadyRegistered;
@@ -32,15 +39,19 @@ pub fn register_fs(self: *Self, fs: FS) !void {
     try self.available_fs.put(fs.fs_id, fs);
 }
 pub fn set_root_fs(self: *Self, fs: FS) void {
+    const lock = self.lock.write();
+    defer lock.deinit();
+
     self.root_fs = fs;
 }
 pub fn generate_fs_id(self: *Self) usize {
-    const ret = self.next_fs_id;
-    self.next_fs_id += 1;
-    return ret;
+    return self.next_fs_id.fetchAdd(1, .acq_rel);
 }
 
 pub fn open_file(self: Self, path: []const u8) FS.Error!INode {
+    const lock = self.lock.read();
+    defer lock.deinit();
+
     blk: {
         const inode = self.root_fs.open_file(path) catch |e| {
             switch (e) {
@@ -56,6 +67,9 @@ pub fn open_file(self: Self, path: []const u8) FS.Error!INode {
 }
 
 pub fn read_inode(self: Self, inode: INode, offset: usize, buffer: []u8) ![]u8 {
+    const lock = self.lock.read();
+    defer lock.deinit();
+
     const fs: FS = self.available_fs.get(inode.fs_id) orelse return FS.Error.SpecifiedFSDoesntExists;
     return fs.read_file(inode, offset, buffer);
 }
