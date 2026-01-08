@@ -30,7 +30,7 @@ pub fn main() !void {
     }
     var ramdisk = try sorz.dev.Ramdisk.new(alloc, block_size, required_size);
     defer ramdisk.deinit(alloc);
-    var fs = try sorz.vfs.RamFS.new(alloc, (ramdisk.get_device().get_block_device() catch @panic("neve should happen")).?, 1);
+    var fs = try sorz.vfs.CSFS.new(alloc, (ramdisk.get_device().get_block_device() catch @panic("neve should happen")).?, 1);
     defer fs.deinit();
     try fs.format();
 

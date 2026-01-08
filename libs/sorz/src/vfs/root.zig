@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const RamFS = @import("ramfs.zig");
+pub const CSFS = @import("csfs.zig");
 const BlockDevice = @import("../dev/block_device.zig");
 const INode = @import("inode.zig");
 const sorz = @import("../root.zig");
