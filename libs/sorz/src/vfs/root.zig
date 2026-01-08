@@ -48,12 +48,12 @@ pub fn generate_fs_id(self: *Self) usize {
     return self.next_fs_id.fetchAdd(1, .acq_rel);
 }
 
-pub fn open_file(self: Self, path: []const u8) FS.Error!INode {
+pub fn open_file(self: Self, path: []const u8, flags: FS.OpenFlags) FS.Error!INode {
     const lock = self.lock.read();
     defer lock.deinit();
 
     blk: {
-        const inode = self.root_fs.open_file(path) catch |e| {
+        const inode = self.root_fs.open_file(path, flags) catch |e| {
             switch (e) {
                 FS.Error.FileDoesntExists => break :blk,
                 else => return e,
@@ -84,9 +84,14 @@ pub const FS = struct {
         SpecifiedFSDoesntExists,
         ReadingOutsideOfFile,
         WritingOutsideOfFile,
+        INodeNotPartOfThisFS,
+        FileTooSmall,
     } || BlockDevice.Error || std.mem.Allocator.Error;
+    pub const OpenFlags = struct {
+        create_if_not_exists: bool = false,
+    };
     pub const VTable = struct {
-        open_file: *const fn (self: *anyopaque, path: []const u8) Error!INode,
+        open_file: *const fn (self: *anyopaque, path: []const u8, flags: OpenFlags) Error!INode,
         read_file: *const fn (self: *anyopaque, inode: INode, block_id: usize, buffer: []u8) Error![]u8,
         write_file: *const fn (self: *anyopaque, inode: INode, block_id: usize, buffer: []const u8) Error!usize,
     };
@@ -94,8 +99,8 @@ pub const FS = struct {
     vtable: *const VTable,
     fs_id: usize,
 
-    pub fn open_file(self: FS, path: []const u8) Error!INode {
-        return self.vtable.open_file(self.ctx, path);
+    pub fn open_file(self: FS, path: []const u8, flags: OpenFlags) Error!INode {
+        return self.vtable.open_file(self.ctx, path, flags);
     }
     pub fn read_file(self: FS, inode: INode, offset: usize, buffer: []u8) Error![]u8 {
         return self.vtable.read_file(self.ctx, inode, offset, buffer);
@@ -115,7 +120,7 @@ pub const FS = struct {
             .fs_id = 0,
         };
     }
-    fn empty_open_file(_: *anyopaque, _: []const u8) Error!INode {
+    fn empty_open_file(_: *anyopaque, _: []const u8, _: OpenFlags) Error!INode {
         return Error.FileDoesntExists;
     }
     fn empty_read_file(_: *anyopaque, _: INode, _: usize, _: []u8) Error![]u8 {

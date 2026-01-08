@@ -131,6 +131,19 @@ pub fn search_file_block_id(self: *Self, path: []const u8) FS.Error!FileSearchRe
     }
     return FS.Error.FileDoesntExists;
 }
+pub fn get_dir_entries_per_block(self: Self) usize {
+    const entry_size = @sizeOf(u32);
+    return self.block_size / entry_size;
+}
+
+pub fn alloc_dir(self: *Self, path: []const u8, at_least_reserve_block: usize, min_dir_entries: usize) !?usize {
+    const entries_per_block = self.get_dir_entries_per_block();
+    const min_req_blocks = std.mem.alignForward(usize, min_dir_entries, entries_per_block);
+    const req_blocks = (@max(min_req_blocks, at_least_reserve_block) + self.block_size - 1) / self.block_size;
+    std.log.info("req blocks: {d}", .{req_blocks});
+    return self.alloc_file(path, 0, req_blocks * self.block_size, .Directory);
+}
+
 pub fn alloc_file(self: *Self, path: []const u8, current_size: usize, max_size: usize, file_type: INode.INodeType) !?usize {
     if (path.len > self.max_name_size()) {
         // TODO: make an FS Error and report that
@@ -174,12 +187,33 @@ pub fn alloc_file(self: *Self, path: []const u8, current_size: usize, max_size: 
     return start_block;
 }
 
-fn open_file(_self: *anyopaque, path: []const u8) Error!INode {
+fn register_inode_file_as_folder_child(_self: *anyopaque, folder: INode, child: INode) Error!void {
     const self: *Self = @ptrCast(@alignCast(_self));
-    const search_results = try self.search_file_block_id(path);
+    if (self.fs_id != folder.fs_id) {
+        return Error.INodeNotPartOfThisFS;
+    }
+    if (self.fs_id != child.fs_id) {
+        return Error.INodeNotPartOfThisFS;
+    }
+}
+
+fn open_file(_self: *anyopaque, path: []const u8, flags: FS.OpenFlags) Error!INode {
+    const self: *Self = @ptrCast(@alignCast(_self));
+    const search_results: FileSearchResult = blk: {
+        break :blk self.search_file_block_id(path) catch |e| {
+            if (e == FS.Error.FileDoesntExists) {
+                if (!flags.create_if_not_exists) {
+                    return e;
+                }
+                @panic("unimplemented CSFS create file if doesn't exists");
+            } else {
+                return e;
+            }
+        };
+    };
     const file_blocks = std.mem.alignForward(usize, search_results.header.file_size, self.block_size) / self.block_size;
 
-    var ret: INode = try .newCapacity(search_results.header.file_type, self.alloc, search_results.header.file_size, file_blocks);
+    var ret: INode = try .newCapacity(search_results.header.file_type, self.alloc, search_results.block_id, search_results.header.file_size, file_blocks);
     ret.fs_id = self.fs_id;
     ret.file_len = search_results.header.file_size;
     ret.inode_number = 0;
@@ -226,6 +260,36 @@ fn write_file(_self: *anyopaque, inode: INode, offset: usize, buffer: []const u8
     if (buffer.len == 0) {
         return 0;
     }
+    const end_offset = offset + buffer.len;
+    if (end_offset > inode.file_len) {
+        // check if file has enough unallocated space to fit buffer
+        // i.e. we can resize in place
+        const file_header_buffer = try self.read_block_at_id(inode.header_block);
+        const file_header: *BlockHeaderInDisk = @ptrCast(@alignCast(file_header_buffer.ptr));
+        const max_alloc_size = file_header.file_alloc;
+        if (end_offset > max_alloc_size) {
+            return Error.FileTooSmall;
+        }
+        // File cannot fit new buffer, try to resize
+        const current_block_count = inode.n_blocks;
+        const new_block_count = std.mem.alignForward(usize, end_offset, self.block_size) / self.block_size;
+        if (current_block_count == new_block_count) {
+            // New size fit on the same amount of blocks, so only change file size
+            inode.file_len = end_offset;
+            // Clean expanded space, make 0
+            const block_id = try inode.get_block_at_offset(@intCast(end_offset / self.block_size));
+            const read_buffer = try self.read_block_at_id(@intCast(block_id));
+            const slice_start = inode.file_len % self.block_size;
+            const slice_end = end_offset % self.block_size;
+            @memset(read_buffer[slice_start..slice_end], 0);
+            try self.write_block_at_it(end_offset / self.block_size, read_buffer);
+        } else {
+            // Need to change the amount of blocks
+            const req_size = end_offset - inode.file_len;
+            _ = req_size;
+        }
+    }
+
     var coffset: usize = 0;
     if (offset % self.block_size != 0) {
         // Un aligned write to first block, need to read data first

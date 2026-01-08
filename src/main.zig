@@ -24,13 +24,13 @@ pub fn kernel_main(hartid: usize, _dtb: *const u8) !void {
     std.log.debug("Test looking for file...", .{});
     const find_id = try fs.search_file_block_id("/init");
     std.log.debug("Result file search: {any}", .{find_id});
-    var inode = try fs.get_fs().open_file("/init");
+    var inode = try fs.get_fs().open_file("/init", .{});
     std.log.debug("Results through FS interface:  {any}", .{inode.simple_block_ptrs});
     var vfs = try sorz.vfs.new(alloc);
     fs.fs_id = vfs.generate_fs_id();
     try vfs.register_fs(fs.get_fs());
     vfs.set_root_fs(fs.get_fs());
-    inode = try vfs.open_file("/");
+    inode = try vfs.open_file("/", .{});
     std.log.debug("Results through VFS interface: {any}", .{inode});
     var buffer: [32]u8 = undefined;
     std.log.debug("Primer bloque: {x}", .{try vfs.read_inode(inode, 0, &buffer)});

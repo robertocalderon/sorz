@@ -20,6 +20,7 @@ n_blocks: usize,
 // atime: u64,
 // ctime: u64,
 ref_count: u32,
+header_block: u64,
 
 ftype: INodeType,
 
@@ -28,7 +29,7 @@ indirect_block_ptrs: ?*[128]u64,
 double_indirect_block_ptrs: ?*[128]?*[128]u64,
 // triple_indirect_block_ptrs: ?*[128]?*[128]?*[128]u64,
 
-pub fn newCapacity(ftype: INodeType, alloc: std.mem.Allocator, file_size: usize, n_blocks: usize) !Self {
+pub fn newCapacity(ftype: INodeType, alloc: std.mem.Allocator, header_block: u64, file_size: usize, n_blocks: usize) !Self {
     var ret: Self = .{
         .fs_id = 0,
         // .ctime = 0,
@@ -42,6 +43,7 @@ pub fn newCapacity(ftype: INodeType, alloc: std.mem.Allocator, file_size: usize,
         // .mtime = 0,
         .inode_number = 0,
         // .group_id = 0,
+        .header_block = header_block,
         .simple_block_ptrs = [1]u64{0} ** 12,
         .indirect_block_ptrs = null,
         .double_indirect_block_ptrs = null,
