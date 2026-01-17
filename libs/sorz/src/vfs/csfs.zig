@@ -140,7 +140,6 @@ pub fn alloc_dir(self: *Self, path: []const u8, at_least_reserve_block: usize, m
     const entries_per_block = self.get_dir_entries_per_block();
     const min_req_blocks = std.mem.alignForward(usize, min_dir_entries, entries_per_block);
     const req_blocks = (@max(min_req_blocks, at_least_reserve_block) + self.block_size - 1) / self.block_size;
-    std.log.info("req blocks: {d}", .{req_blocks});
     return self.alloc_file(path, 0, req_blocks * self.block_size, .Directory);
 }
 
@@ -197,7 +196,7 @@ fn register_inode_file_as_folder_child(_self: *anyopaque, folder: INode, child: 
     }
 }
 
-fn open_file(_self: *anyopaque, path: []const u8, flags: FS.OpenFlags) Error!INode {
+fn open_file(_self: *anyopaque, path: []const u8, flags: FS.OpenFlags) Error!*INode {
     const self: *Self = @ptrCast(@alignCast(_self));
     const search_results: FileSearchResult = blk: {
         break :blk self.search_file_block_id(path) catch |e| {
@@ -212,8 +211,10 @@ fn open_file(_self: *anyopaque, path: []const u8, flags: FS.OpenFlags) Error!INo
         };
     };
     const file_blocks = std.mem.alignForward(usize, search_results.header.file_size, self.block_size) / self.block_size;
+    const alloc_blocks = std.mem.alignForward(usize, search_results.header.file_alloc, self.block_size) / self.block_size;
 
-    var ret: INode = try .newCapacity(search_results.header.file_type, self.alloc, search_results.block_id, search_results.header.file_size, file_blocks);
+    const ret: *INode = try self.alloc.create(INode);
+    ret.* = try .newCapacity(search_results.header.file_type, self.alloc, search_results.block_id, search_results.header.file_size, @max(alloc_blocks, file_blocks));
     ret.fs_id = self.fs_id;
     ret.file_len = search_results.header.file_size;
     ret.inode_number = 0;
@@ -225,7 +226,7 @@ fn open_file(_self: *anyopaque, path: []const u8, flags: FS.OpenFlags) Error!INo
     }
     return ret;
 }
-fn read_file(_self: *anyopaque, inode: INode, offset: usize, buffer: []u8) Error![]u8 {
+fn read_file(_self: *anyopaque, inode: *INode, offset: usize, buffer: []u8) Error![]u8 {
     const self: *Self = @ptrCast(@alignCast(_self));
     if (buffer.len == 0) {
         return buffer;
@@ -255,7 +256,7 @@ fn read_file(_self: *anyopaque, inode: INode, offset: usize, buffer: []u8) Error
     return buffer;
 }
 
-fn write_file(_self: *anyopaque, inode: INode, offset: usize, buffer: []const u8) Error!usize {
+fn write_file(_self: *anyopaque, inode: *INode, offset: usize, buffer: []const u8) Error!usize {
     const self: *Self = @ptrCast(@alignCast(_self));
     if (buffer.len == 0) {
         return 0;
@@ -264,10 +265,11 @@ fn write_file(_self: *anyopaque, inode: INode, offset: usize, buffer: []const u8
     if (end_offset > inode.file_len) {
         // check if file has enough unallocated space to fit buffer
         // i.e. we can resize in place
-        const file_header_buffer = try self.read_block_at_id(inode.header_block);
+        const file_header_buffer = try self.read_block_at_id(@intCast(inode.header_block));
         const file_header: *BlockHeaderInDisk = @ptrCast(@alignCast(file_header_buffer.ptr));
-        const max_alloc_size = file_header.file_alloc;
+        const max_alloc_size = file_header.file_alloc * self.block_size;
         if (end_offset > max_alloc_size) {
+            std.log.err("end_offset > max_alloc_size: {d} > {d}", .{ end_offset, max_alloc_size });
             return Error.FileTooSmall;
         }
         // File cannot fit new buffer, try to resize
@@ -279,8 +281,8 @@ fn write_file(_self: *anyopaque, inode: INode, offset: usize, buffer: []const u8
             // Clean expanded space, make 0
             const block_id = try inode.get_block_at_offset(@intCast(end_offset / self.block_size));
             const read_buffer = try self.read_block_at_id(@intCast(block_id));
-            const slice_start = inode.file_len % self.block_size;
-            const slice_end = end_offset % self.block_size;
+            const slice_start: usize = @intCast(inode.file_len % self.block_size);
+            const slice_end: usize = @intCast(end_offset % self.block_size);
             @memset(read_buffer[slice_start..slice_end], 0);
             try self.write_block_at_it(end_offset / self.block_size, read_buffer);
         } else {

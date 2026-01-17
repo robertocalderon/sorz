@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub const CSFS = @import("csfs.zig");
 const BlockDevice = @import("../dev/block_device.zig");
-const INode = @import("inode.zig");
+pub const INode = @import("inode.zig");
 const sorz = @import("../root.zig");
 
 const Self = @This();
@@ -48,7 +48,7 @@ pub fn generate_fs_id(self: *Self) usize {
     return self.next_fs_id.fetchAdd(1, .acq_rel);
 }
 
-pub fn open_file(self: Self, path: []const u8, flags: FS.OpenFlags) FS.Error!INode {
+pub fn open_file(self: Self, path: []const u8, flags: FS.OpenFlags) FS.Error!*INode {
     const lock = self.lock.read();
     defer lock.deinit();
 
@@ -66,14 +66,14 @@ pub fn open_file(self: Self, path: []const u8, flags: FS.OpenFlags) FS.Error!INo
     return FS.Error.FileDoesntExists;
 }
 
-pub fn read_inode(self: Self, inode: INode, offset: usize, buffer: []u8) ![]u8 {
+pub fn read_inode(self: Self, inode: *INode, offset: usize, buffer: []u8) ![]u8 {
     const lock = self.lock.read();
     defer lock.deinit();
 
     const fs: FS = self.available_fs.get(inode.fs_id) orelse return FS.Error.SpecifiedFSDoesntExists;
     return fs.read_file(inode, offset, buffer);
 }
-pub fn write_inode(self: Self, inode: INode, offset: usize, buffer: []const u8) !usize {
+pub fn write_inode(self: Self, inode: *INode, offset: usize, buffer: []const u8) !usize {
     const fs: FS = self.available_fs.get(inode.fs_id) orelse return FS.Error.SpecifiedFSDoesntExists;
     return fs.write_file(inode, offset, buffer);
 }
@@ -91,21 +91,21 @@ pub const FS = struct {
         create_if_not_exists: bool = false,
     };
     pub const VTable = struct {
-        open_file: *const fn (self: *anyopaque, path: []const u8, flags: OpenFlags) Error!INode,
-        read_file: *const fn (self: *anyopaque, inode: INode, block_id: usize, buffer: []u8) Error![]u8,
-        write_file: *const fn (self: *anyopaque, inode: INode, block_id: usize, buffer: []const u8) Error!usize,
+        open_file: *const fn (self: *anyopaque, path: []const u8, flags: OpenFlags) Error!*INode,
+        read_file: *const fn (self: *anyopaque, inode: *INode, block_id: usize, buffer: []u8) Error![]u8,
+        write_file: *const fn (self: *anyopaque, inode: *INode, block_id: usize, buffer: []const u8) Error!usize,
     };
     ctx: *anyopaque,
     vtable: *const VTable,
     fs_id: usize,
 
-    pub fn open_file(self: FS, path: []const u8, flags: OpenFlags) Error!INode {
+    pub fn open_file(self: FS, path: []const u8, flags: OpenFlags) Error!*INode {
         return self.vtable.open_file(self.ctx, path, flags);
     }
-    pub fn read_file(self: FS, inode: INode, offset: usize, buffer: []u8) Error![]u8 {
+    pub fn read_file(self: FS, inode: *INode, offset: usize, buffer: []u8) Error![]u8 {
         return self.vtable.read_file(self.ctx, inode, offset, buffer);
     }
-    pub fn write_file(self: FS, inode: INode, offset: usize, buffer: []const u8) Error!usize {
+    pub fn write_file(self: FS, inode: *INode, offset: usize, buffer: []const u8) Error!usize {
         return self.vtable.write_file(self.ctx, inode, offset, buffer);
     }
 
@@ -120,19 +120,19 @@ pub const FS = struct {
             .fs_id = 0,
         };
     }
-    fn empty_open_file(_: *anyopaque, _: []const u8, _: OpenFlags) Error!INode {
+    fn empty_open_file(_: *anyopaque, _: []const u8, _: OpenFlags) Error!*INode {
         return Error.FileDoesntExists;
     }
-    fn empty_read_file(_: *anyopaque, _: INode, _: usize, _: []u8) Error![]u8 {
+    fn empty_read_file(_: *anyopaque, _: *INode, _: usize, _: []u8) Error![]u8 {
         return Error.FileDoesntExists;
     }
-    fn empty_write_file(_: *anyopaque, _: INode, _: usize, buffer: []const u8) Error!usize {
+    fn empty_write_file(_: *anyopaque, _: *INode, _: usize, buffer: []const u8) Error!usize {
         return buffer.len;
     }
 };
 
 pub const Reader = struct {
-    inode: INode,
+    inode: *INode,
     vfs: *const Self,
     interface: std.Io.Reader,
     offset: usize,
@@ -169,7 +169,7 @@ pub const Reader = struct {
     }
 };
 pub const Writer = struct {
-    inode: INode,
+    inode: *INode,
     vfs: *const Self,
     interface: std.Io.Writer,
     offset: usize,
@@ -212,7 +212,7 @@ pub const Writer = struct {
     }
 };
 
-pub fn reader(self: *const Self, inode: INode, buffer: []u8) Reader {
+pub fn reader(self: *const Self, inode: *INode, buffer: []u8) Reader {
     return .{
         .inode = inode,
         .vfs = self,
@@ -227,7 +227,7 @@ pub fn reader(self: *const Self, inode: INode, buffer: []u8) Reader {
         },
     };
 }
-pub fn writer(self: *const Self, inode: INode, buffer: []u8) Writer {
+pub fn writer(self: *const Self, inode: *INode, buffer: []u8) Writer {
     return .{
         .inode = inode,
         .vfs = self,

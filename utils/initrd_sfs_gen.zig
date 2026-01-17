@@ -36,7 +36,8 @@ pub fn main() !void {
 
     // _ = (fs.alloc_file("/", @sizeOf(u32) * input_files.len, @sizeOf(u32) * input_files.len, .Directory) catch @panic("Couldn't reserve file on ramdisk")) orelse @panic("Couldn't found free space on ramdisk");
     _ = (fs.alloc_dir("/", 1, input_files.len + 1) catch @panic("Coudln't create root dir")) orelse @panic("Coudln't create root dir");
-    const root_dir = try fs.get_fs().open_file("/", .{});
+    const root_dir: *sorz.vfs.INode = try fs.get_fs().open_file("/", .{});
+    defer alloc.destroy(root_dir);
 
     for (input_files, 0..) |input, i| {
         var iter = std.mem.splitBackwardsScalar(u8, input, '/');
