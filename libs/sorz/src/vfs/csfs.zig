@@ -221,9 +221,10 @@ fn open_file(_self: *anyopaque, path: []const u8, flags: FS.OpenFlags) Error!*IN
     ret.ref_count = 1;
 
     @memset(ret.simple_block_ptrs[0..12], 0);
-    for (0..file_blocks) |i| {
+    for (0..alloc_blocks) |i| {
         try ret.set_block_at_offset(i, search_results.block_id + 1 + i);
     }
+    // TODO: bigger files need indirect blocks
     return ret;
 }
 fn read_file(_self: *anyopaque, inode: *INode, offset: usize, buffer: []u8) Error![]u8 {
@@ -289,6 +290,8 @@ fn write_file(_self: *anyopaque, inode: *INode, offset: usize, buffer: []const u
             // Need to change the amount of blocks
             const req_size = end_offset - inode.file_len;
             _ = req_size;
+            std.log.err("cbc: {}, nbc: {}, BLOCK NUMBER CHANGE UNIMPLEMENTED!!!", .{ current_block_count, new_block_count });
+            std.debug.assert(false);
         }
     }
 
@@ -315,10 +318,15 @@ fn write_file(_self: *anyopaque, inode: *INode, offset: usize, buffer: []const u
         }
         // final unaligned write
         const read_buffer = try self.read_block_at_id(@intCast(block_id));
-        @memcpy(read_buffer[0 .. buffer.len - coffset], buffer[coffset..]);
+        @memcpy(read_buffer[0..next_write_size], buffer[coffset..]);
         try self.write_block_at_it(@intCast(block_id), read_buffer);
-        coffset += buffer[coffset..].len;
+        coffset += next_write_size;
     }
+    // Update header block
+    const file_header_buffer = try self.read_block_at_id(@intCast(inode.header_block));
+    const file_header: *volatile BlockHeaderInDisk = @ptrCast(@alignCast(file_header_buffer.ptr));
+    file_header.file_size = @intCast(coffset);
+    try self.write_block_at_it(@intCast(inode.header_block), file_header_buffer);
     return coffset;
 }
 
