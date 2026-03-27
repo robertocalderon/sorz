@@ -75,6 +75,10 @@ pub fn newCapacity(ftype: INodeType, alloc: std.mem.Allocator, header_block: u64
             }
             return e;
         };
+        @memset(ret.double_indirect_block_ptrs.?[i].?, 0);
+        if (n_blocks <= 12 + 128 + (i * 128)) {
+            return ret;
+        }
     }
     if (n_blocks <= 12 + 128 + (128 * 128)) {
         return ret;

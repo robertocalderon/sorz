@@ -211,7 +211,7 @@ fn open_file(_self: *anyopaque, path: []const u8, flags: FS.OpenFlags) Error!*IN
         };
     };
     const file_blocks = std.mem.alignForward(usize, search_results.header.file_size, self.block_size) / self.block_size;
-    const alloc_blocks = std.mem.alignForward(usize, search_results.header.file_alloc, self.block_size) / self.block_size;
+    const alloc_blocks = std.mem.alignForward(usize, search_results.header.file_alloc * self.block_size, self.block_size) / self.block_size;
 
     const ret: *INode = try self.alloc.create(INode);
     ret.* = try .newCapacity(search_results.header.file_type, self.alloc, search_results.block_id, search_results.header.file_size, @max(alloc_blocks, file_blocks));
@@ -220,11 +220,10 @@ fn open_file(_self: *anyopaque, path: []const u8, flags: FS.OpenFlags) Error!*IN
     ret.inode_number = 0;
     ret.ref_count = 1;
 
-    @memset(ret.simple_block_ptrs[0..12], 0);
+    // @memset(ret.simple_block_ptrs[0..12], 0);
     for (0..alloc_blocks) |i| {
         try ret.set_block_at_offset(i, search_results.block_id + 1 + i);
     }
-    // TODO: bigger files need indirect blocks
     return ret;
 }
 fn read_file(_self: *anyopaque, inode: *INode, offset: usize, buffer: []u8) Error![]u8 {
